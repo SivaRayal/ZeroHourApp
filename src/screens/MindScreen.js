@@ -28,17 +28,20 @@ const DRUM_ITEM_H = 40;
 
 function DrumRoll({ items, selectedIndex, onChange, width = 48 }) {
   const scrollRef = useRef(null);
+  // Capture selectedIndex at mount time so the effect closure is stable
+  const initIdx = useRef(selectedIndex);
 
-  // Scroll to initial position after layout
+  // Scroll to initial position once the Modal layout is ready.
+  // 350 ms comfortably outlasts the default Modal slide animation (~300 ms).
   useEffect(() => {
     const t = setTimeout(() => {
       scrollRef.current?.scrollTo({
-        y: selectedIndex * DRUM_ITEM_H,
+        y: initIdx.current * DRUM_ITEM_H,
         animated: false,
       });
-    }, 60);
+    }, 350);
     return () => clearTimeout(t);
-  }, []); // mount only
+  }, []); // mount only — intentional
 
   const handleScrollEnd = (e) => {
     const raw = e.nativeEvent.contentOffset.y / DRUM_ITEM_H;
@@ -48,13 +51,14 @@ function DrumRoll({ items, selectedIndex, onChange, width = 48 }) {
 
   return (
     <View style={[drum.outer, { width }]}>
-      {/* Highlight band */}
+      {/* Highlight band — pointerEvents="none" so touches pass through */}
       <View style={drum.band} pointerEvents="none" />
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
         snapToInterval={DRUM_ITEM_H}
         decelerationRate="fast"
+        nestedScrollEnabled={true}
         contentContainerStyle={{ paddingVertical: DRUM_ITEM_H }}
         onMomentumScrollEnd={handleScrollEnd}
         onScrollEndDrag={handleScrollEnd}
@@ -258,7 +262,7 @@ function InlineDateTimePicker({ value, onChange }) {
 }
 
 // ─── Time Slot Picker ─────────────────────────────────────────────────────────
-function TimeSlotPicker({ count, slots, onChange }) {
+function TimeSlotPicker({ count, slots, onChange, formKey = 0 }) {
   const arr = Array.from({ length: count });
 
   const handleSlotChange = (i, val24) => {
@@ -273,6 +277,7 @@ function TimeSlotPicker({ count, slots, onChange }) {
         <View key={i} style={ts.slotRow}>
           <Text style={ts.slotLabel}>SLOT {i + 1}</Text>
           <TimeScrollPicker
+            key={`slot-${formKey}-${i}`}
             value={slots[i] || "09:00"}
             onChange={(v) => handleSlotChange(i, v)}
           />
@@ -394,6 +399,9 @@ const pk = StyleSheet.create({
 export default function MindScreen() {
   const [tasks, setTasks] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  // Incrementing key forces picker sub-trees to fully remount each time the
+  // form opens, so DrumRoll's useEffect fires while the Modal is actually visible.
+  const [formKey, setFormKey] = useState(0);
   const [form, setForm] = useState({
     name: "",
     desc: "",
@@ -426,6 +434,7 @@ export default function MindScreen() {
       slots: ["09:00"],
       hasEndDate: false,
     });
+    setFormKey((k) => k + 1); // remount all picker sub-trees
     setShowForm(true);
   };
 
@@ -568,6 +577,7 @@ export default function MindScreen() {
             <ScrollView
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
             >
               <Field label="FLIGHT NAME" required>
                 <TextInput
@@ -596,6 +606,7 @@ export default function MindScreen() {
               {/* DEPARTURE TIME — drum picker */}
               <Field label="DEPARTURE TIME" required>
                 <InlineDateTimePicker
+                  key={`dep-${formKey}`}
                   value={form.startDate}
                   onChange={(v) => setForm({ ...form, startDate: v })}
                 />
@@ -606,6 +617,7 @@ export default function MindScreen() {
                 {form.hasEndDate ? (
                   <View>
                     <InlineDateTimePicker
+                      key={`arr-${formKey}`}
                       value={form.endDate || form.startDate}
                       onChange={(v) => setForm({ ...form, endDate: v })}
                     />
@@ -675,6 +687,7 @@ export default function MindScreen() {
                   count={form.freq}
                   slots={form.slots}
                   onChange={(slots) => setForm({ ...form, slots })}
+                  formKey={formKey}
                 />
               </Field>
 
