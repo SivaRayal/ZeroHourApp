@@ -1,24 +1,55 @@
 {
   "expo": {
     "name": "ZeroHour",
-    "slug": "ZeroHour",
+    "slug": "zerohour",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#05070D"
     },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.zerohour.app",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "ZeroHour uses Face ID to secure your session."
       }
     },
+    "android": {
+      "package": "com.zerohour.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#05070D"
+      },
+      "permissions": [
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "VIBRATE"
+      ]
+    },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-sharing",
+      "expo-font",
+      "expo-splash-screen",
+      "expo-local-authentication",
+      [
+        "expo-av",
+        {
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "zerohour-app"
+      }
     }
   }
 }
