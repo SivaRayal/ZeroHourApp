@@ -238,7 +238,7 @@ export default function BodyScreen() {
       <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.screenTag}>TERMINAL - F · FASTING</Text>
+          <Text style={styles.screenTag}>TERMINAL T · TRACK</Text>
           <Text style={styles.screenTitle}>FASTING TRACKER</Text>
         </View>
 

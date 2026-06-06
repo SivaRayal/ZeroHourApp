@@ -1,11 +1,12 @@
 import React from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 import DashboardScreen from "../screens/DashboardScreen";
 import BodyScreen from "../screens/BodyScreen";
@@ -16,12 +17,18 @@ import { COLORS } from "../theme";
 
 const Tab = createBottomTabNavigator();
 
-function TabIcon({ label, icon, focused }) {
+// Tab icon sizes
+const ICON_SIZE       = 22;
+const ICON_SIZE_FOCUS = 24;
+
+function TabIcon({ label, iconName, focused }) {
   return (
     <View style={styles.tabIcon}>
-      <Text style={[styles.tabEmoji, focused && styles.tabEmojiActive]}>
-        {icon}
-      </Text>
+      <Ionicons
+        name={focused ? iconName : `${iconName}-outline`}
+        size={focused ? ICON_SIZE_FOCUS : ICON_SIZE}
+        color={focused ? COLORS.neonGreen : COLORS.tabInactive}
+      />
       <Text
         style={[
           styles.tabLabel,
@@ -37,9 +44,6 @@ function TabIcon({ label, icon, focused }) {
 
 function TabsNavigator({ onLogout }) {
   const insets = useSafeAreaInsets();
-  // bottomPad: respect the device's navigation bar (gesture strip or button row).
-  // Add a minimum of 8 px on top of whatever the OS reports so there's always
-  // comfortable breathing room even on devices with no nav bar.
   const bottomPad = Math.max(insets.bottom, 8);
 
   return (
@@ -58,34 +62,34 @@ function TabsNavigator({ onLogout }) {
         component={DashboardScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon label="HOME" icon="🏠" focused={focused} />
+            <TabIcon label="HOME" iconName="home" focused={focused} />
           ),
         }}
       />
       <Tab.Screen
-        name="Body"
+        name="Track"
         component={BodyScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon label="BODY" icon="🧬" focused={focused} />
+            <TabIcon label="TRACK" iconName="pulse" focused={focused} />
           ),
         }}
       />
       <Tab.Screen
-        name="Mind"
+        name="Plan"
         component={MindScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon label="MIND" icon="☮️" focused={focused} />
+            <TabIcon label="PLAN" iconName="list" focused={focused} />
           ),
         }}
       />
       <Tab.Screen
-        name="Soul"
+        name="Act"
         component={SoulScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon label="SOUL" icon="⏳" focused={focused} />
+            <TabIcon label="ACT" iconName="timer" focused={focused} />
           ),
         }}
       />
@@ -94,7 +98,7 @@ function TabsNavigator({ onLogout }) {
         listeners={{ tabPress: () => {} }}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon label="PROFILE" icon="🪪" focused={focused} />
+            <TabIcon label="PROFILE" iconName="person" focused={focused} />
           ),
         }}
       >
@@ -120,7 +124,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#1A2035",
     paddingTop: 6,
-    elevation: 20, // Android shadow above content
+    elevation: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.4,
@@ -131,14 +135,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 2,
     minWidth: 56,
-  },
-  tabEmoji: {
-    fontSize: 22,
-    opacity: 0.55,
-  },
-  tabEmojiActive: {
-    opacity: 1,
-    fontSize: 24,
   },
   tabLabel: {
     fontSize: 9,

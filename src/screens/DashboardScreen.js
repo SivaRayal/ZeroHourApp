@@ -10,6 +10,7 @@ import {
   Dimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { format } from "date-fns";
 import { COLORS, SPACING, FONTS, RADIUS } from "../theme";
@@ -129,37 +130,37 @@ export default function DashboardScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Body-Mind-Soul Terminals */}
+        {/* Terminals */}
         <View style={styles.section}>
           <SectionHeader
             title="SELECT YOUR DESTINATION"
-            sub="ZERO-HOUR's TERMINALS"
+            sub="ZERO-HOUR TERMINALS"
           />
           <View style={styles.terminalRow}>
             <TerminalCard
-              icon="🧬"
-              title="BODY"
+              iconName="pulse"
+              title="TRACK"
               sub="FASTING"
               color={COLORS.neonBlue}
               active={fasting?.active}
               activeLabel={fasting?.active ? "IN FLIGHT" : null}
-              onPress={() => navigation.navigate("Body")}
+              onPress={() => navigation.navigate("Track")}
             />
             <TerminalCard
-              icon="☮️"
-              title="ACTION"
+              iconName="list"
+              title="PLAN"
               sub="TO-DO LIST"
               color={COLORS.neonGreen}
               active={tasks.some((t) => t.active)}
               activeLabel={tasks.some((t) => t.active) ? "ACTIVE" : null}
-              onPress={() => navigation.navigate("Mind")}
+              onPress={() => navigation.navigate("Plan")}
             />
             <TerminalCard
-              icon="🎯"
-              title="MIND"
+              iconName="timer"
+              title="ACT"
               sub="FOCUS TIMER"
               color={COLORS.neonPurple}
-              onPress={() => navigation.navigate("Soul")}
+              onPress={() => navigation.navigate("Act")}
             />
           </View>
         </View>
@@ -226,7 +227,7 @@ export default function DashboardScreen({ navigation }) {
             <View style={styles.emptyBoard}>
               <Text style={styles.emptyText}>NO SCHEDULED FLIGHTS</Text>
               <Text style={styles.emptySub}>
-                Schedule tasks in ACTION or BODY terminals.
+                Add tasks in PLAN or start fasting in TRACK.
               </Text>
             </View>
           ) : (
@@ -252,7 +253,7 @@ export default function DashboardScreen({ navigation }) {
 export { default as SectionHeader } from "../components/SectionHeader";
 
 function TerminalCard({
-  icon,
+  iconName,
   title,
   sub,
   color,
@@ -269,7 +270,7 @@ function TerminalCard({
       {active && (
         <View style={[styles.activeDot, { backgroundColor: color }]} />
       )}
-      <Text style={styles.termIcon}>{icon}</Text>
+      <Ionicons name={iconName} size={28} color={color} style={styles.termIcon} />
       <Text style={[styles.termTitle, { color }]}>{title}</Text>
       <Text style={styles.termSub}>{sub}</Text>
       {activeLabel && (
@@ -368,7 +369,7 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  termIcon: { fontSize: 30, marginBottom: 8 },
+  termIcon: { marginBottom: 8 },
   termTitle: { fontSize: FONTS.sizes.lg, fontWeight: "900", letterSpacing: 3 },
   termSub: {
     color: COLORS.textDim,

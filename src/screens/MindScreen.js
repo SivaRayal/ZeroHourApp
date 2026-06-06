@@ -578,8 +578,8 @@ export default function MindScreen() {
     await Storage.saveTasks(updated);
     setTasks(updated);
 
-    // Navigate to Soul tab so the countdown starts immediately
-    navigation.navigate("Soul");
+    // Navigate to Act tab so the countdown starts immediately
+    navigation.navigate("Act");
   };
 
   /** LAND button tapped — show celebration modal first */
@@ -629,7 +629,7 @@ export default function MindScreen() {
     >
       <View style={styles.header}>
         <View>
-          <Text style={styles.screenTag}>TERMINAL M · MIND</Text>
+          <Text style={styles.screenTag}>TERMINAL P · PLAN</Text>
           <Text style={styles.screenTitle}>COMMAND CONTROL</Text>
         </View>
       </View>

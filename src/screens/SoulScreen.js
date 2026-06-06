@@ -399,7 +399,7 @@ export default function SoulScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.screenTitle}>FOCUS TIMER</Text>
-          <Text style={styles.screenTag}>TERMINAL S · SOUL</Text>
+          <Text style={styles.screenTag}>TERMINAL A · ACT</Text>
         </View>
 
         {/* Session label */}
