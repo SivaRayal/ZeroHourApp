@@ -24,11 +24,7 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#05070D"
       },
-      "permissions": [
-        "USE_BIOMETRIC",
-        "USE_FINGERPRINT",
-        "VIBRATE"
-      ]
+      "permissions": ["USE_BIOMETRIC", "USE_FINGERPRINT", "VIBRATE"]
     },
     "web": {
       "favicon": "./assets/icon.png"
