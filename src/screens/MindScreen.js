@@ -16,6 +16,7 @@ import { COLORS, SPACING, FONTS, RADIUS } from "../theme";
 import { Storage } from "../store/storage";
 import { scheduleReminder, cancelNotification } from "../utils/notifications";
 import SectionHeader from "../components/SectionHeader";
+import ConfirmModal from "../components/ConfirmModal";
 
 const FREQ_OPTIONS = [1, 2, 3, 4, 5, 6];
 
@@ -432,6 +433,9 @@ export default function MindScreen() {
     hasEndDate: false,
   });
   const [filter, setFilter] = useState("scheduled");
+  // Pending modal confirmations: { id, name } or null
+  const [pendingLand, setPendingLand] = useState(null);
+  const [pendingDel, setPendingDel]   = useState(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -535,8 +539,14 @@ export default function MindScreen() {
     setTasks(updated);
   };
 
-  /** LAND: inflight → landed */
-  const landTask = async (id) => {
+  /** LAND button tapped — show celebration modal first */
+  const requestLand = (id, name) => setPendingLand({ id, name });
+
+  /** Confirmed via modal — execute the land */
+  const confirmLand = async () => {
+    if (!pendingLand) return;
+    const { id } = pendingLand;
+    setPendingLand(null);
     const updated = tasks.map((t) =>
       t.id === id ? { ...t, status: "landed", active: false } : t,
     );
@@ -545,31 +555,20 @@ export default function MindScreen() {
     setTasks(updated);
   };
 
-  /** RESUME: landed → inflight */
-  const resumeTask = async (id) => {
-    const updated = tasks.map((t) =>
-      t.id === id ? { ...t, status: "inflight", active: true } : t,
-    );
-    await Storage.saveTasks(updated);
-    setTasks(updated);
-  };
+  /** DEL button tapped — show confirmation modal first */
+  const requestDelete = (id, name) => setPendingDel({ id, name });
 
-  const deleteTask = async (id) => {
-    Alert.alert("CANCEL FLIGHT?", "Remove this task?", [
-      { text: "KEEP", style: "cancel" },
-      {
-        text: "DELETE",
-        style: "destructive",
-        onPress: async () => {
-          const updated = tasks.filter((t) => t.id !== id);
-          await Storage.saveTasks(updated);
-          await cancelNotification(`reminder_pre_${id}`);
-          await cancelNotification(`reminder_start_${id}`);
-          await cancelNotification(`reminder_missed_${id}`);
-          setTasks(updated);
-        },
-      },
-    ]);
+  /** Confirmed via modal — execute the delete */
+  const confirmDelete = async () => {
+    if (!pendingDel) return;
+    const { id } = pendingDel;
+    setPendingDel(null);
+    const updated = tasks.filter((t) => t.id !== id);
+    await Storage.saveTasks(updated);
+    await cancelNotification(`reminder_pre_${id}`);
+    await cancelNotification(`reminder_start_${id}`);
+    await cancelNotification(`reminder_missed_${id}`);
+    setTasks(updated);
   };
 
   const filtered = tasks.filter((t) => t.status === filter);
@@ -688,9 +687,8 @@ export default function MindScreen() {
             key={task.id}
             task={task}
             onTakeoff={takeoffTask}
-            onLand={landTask}
-            onResume={resumeTask}
-            onDelete={deleteTask}
+            onLandRequest={requestLand}
+            onDeleteRequest={requestDelete}
           />
         ))}
       </ScrollView>
@@ -841,6 +839,39 @@ export default function MindScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── LAND celebration modal ─────────────────────────────────── */}
+      <ConfirmModal
+        visible={!!pendingLand}
+        icon="🎉"
+        title="MISSION ACCOMPLISHED!"
+        body={
+          `"${pendingLand?.name}" has touched down successfully!\n\n` +
+          `Outstanding execution — your discipline is at cruising altitude. ` +
+          `Every completed mission brings you closer to your destination.\n\n` +
+          `The skies are yours. Keep flying! 🌟`
+        }
+        confirmLabel="AWESOME! 🚀"
+        confirmColors={["#00FF88", "#00CFFF"]}
+        onConfirm={confirmLand}
+      />
+
+      {/* ── DEL confirmation modal ─────────────────────────────────── */}
+      <ConfirmModal
+        visible={!!pendingDel}
+        icon="🗑️"
+        title="DELETE FLIGHT?"
+        body={
+          `"${pendingDel?.name}" will be permanently removed from your flight log.\n\n` +
+          `Once deleted, this mission cannot be tracked or recovered. ` +
+          `All progress data will be lost forever.`
+        }
+        confirmLabel="DELETE FLIGHT"
+        confirmColors={["#FF3B5C", "#FF6D00"]}
+        cancelLabel="KEEP MISSION"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDel(null)}
+      />
     </LinearGradient>
   );
 }
@@ -879,32 +910,55 @@ function Field({ label, required, children }) {
   );
 }
 
-// ─── Task Card ────────────────────────────────────────────────────────────────
+// ─── Task Card helpers ────────────────────────────────────────────────────────
 const STATUS_META = {
-  scheduled: { color: COLORS.neonGreen,     label: "SCHEDULED",  dot: COLORS.neonGreen   },
-  delayed:   { color: COLORS.neonAmber,     label: "DELAYED",    dot: COLORS.neonAmber   },
-  inflight:  { color: COLORS.neonBlue,      label: "IN FLIGHT",  dot: COLORS.neonBlue    },
-  landed:    { color: COLORS.textSecondary, label: "LANDED",     dot: COLORS.textDim     },
+  scheduled: { color: COLORS.neonGreen,     label: "SCHEDULED" },
+  delayed:   { color: COLORS.neonAmber,     label: "DELAYED"   },
+  inflight:  { color: COLORS.neonBlue,      label: "IN FLIGHT" },
+  landed:    { color: COLORS.textSecondary, label: "LANDED"    },
 };
 
-function TaskCard({ task, onTakeoff, onLand, onResume, onDelete }) {
-  const s = task.status || (task.active ? "inflight" : "landed");
+/**
+ * LANDED tasks: DEL is hidden if the task's arrival time (endDate) exists
+ * and falls outside the current calendar month + year.
+ * If there is no endDate the rule does not apply, so DEL is shown.
+ */
+function canDeleteLanded(task) {
+  if (!task.endDate) return true; // no arrival time → always show DEL
+  const now = new Date();
+  const arrival = new Date(task.endDate.replace(" ", "T"));
+  return (
+    arrival.getMonth()    === now.getMonth() &&
+    arrival.getFullYear() === now.getFullYear()
+  );
+}
+
+// ─── Task Card ────────────────────────────────────────────────────────────────
+function TaskCard({ task, onTakeoff, onLandRequest, onDeleteRequest }) {
+  const s    = task.status || (task.active ? "inflight" : "landed");
   const meta = STATUS_META[s] || STATUS_META.scheduled;
 
+  // For LANDED: DEL shown only when endDate is within current month/year
+  const showDel = s === "landed" ? canDeleteLanded(task) : true;
+
   return (
-    <View
-      style={[tcs.card, { borderColor: meta.color + "44" }]}
-    >
+    <View style={[tcs.card, { borderColor: meta.color + "44" }]}>
       {/* Status pill */}
-      <View style={[tcs.statusPill, { backgroundColor: meta.color + "22", borderColor: meta.color + "55" }]}>
+      <View
+        style={[
+          tcs.statusPill,
+          { backgroundColor: meta.color + "22", borderColor: meta.color + "55" },
+        ]}
+      >
         <View style={[tcs.statusDot, { backgroundColor: meta.color }]} />
         <Text style={[tcs.statusLabel, { color: meta.color }]}>{meta.label}</Text>
       </View>
 
       <View style={tcs.top}>
         <Text style={tcs.name} numberOfLines={2}>{task.name}</Text>
+
         <View style={tcs.actions}>
-          {/* Primary action — varies by status */}
+          {/* TAKEOFF — scheduled or delayed */}
           {(s === "scheduled" || s === "delayed") && (
             <TouchableOpacity
               onPress={() => onTakeoff(task.id)}
@@ -915,33 +969,29 @@ function TaskCard({ task, onTakeoff, onLand, onResume, onDelete }) {
               </Text>
             </TouchableOpacity>
           )}
+
+          {/* LAND — inflight only; triggers celebration modal */}
           {s === "inflight" && (
             <TouchableOpacity
-              onPress={() => onLand(task.id)}
-              style={[tcs.actionBtn, { borderColor: COLORS.neonRed }]}
+              onPress={() => onLandRequest(task.id, task.name)}
+              style={[tcs.actionBtn, { borderColor: COLORS.neonGreen }]}
             >
-              <Text style={[tcs.actionBtnText, { color: COLORS.neonRed }]}>
+              <Text style={[tcs.actionBtnText, { color: COLORS.neonGreen }]}>
                 ✓ LAND
               </Text>
             </TouchableOpacity>
           )}
-          {s === "landed" && (
+
+          {/* DEL — visible for non-landed tasks always; for landed only when
+               endDate is within the current month/year */}
+          {showDel && (
             <TouchableOpacity
-              onPress={() => onResume(task.id)}
-              style={[tcs.actionBtn, { borderColor: COLORS.neonGreen }]}
+              onPress={() => onDeleteRequest(task.id, task.name)}
+              style={tcs.delBtn}
             >
-              <Text style={[tcs.actionBtnText, { color: COLORS.neonGreen }]}>
-                ▶ RESUME
-              </Text>
+              <Text style={tcs.delBtnText}>DEL</Text>
             </TouchableOpacity>
           )}
-          {/* Delete — always visible */}
-          <TouchableOpacity
-            onPress={() => onDelete(task.id)}
-            style={tcs.delBtn}
-          >
-            <Text style={tcs.delBtnText}>DEL</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -956,7 +1006,10 @@ function TaskCard({ task, onTakeoff, onLand, onResume, onDelete }) {
       {task.slots?.length > 0 && (
         <View style={tcs.slotsRow}>
           {task.slots.map((slot, i) => (
-            <View key={i} style={[tcs.slotChip, { borderColor: meta.color + "44" }]}>
+            <View
+              key={i}
+              style={[tcs.slotChip, { borderColor: meta.color + "44" }]}
+            >
               <Text style={[tcs.slotText, { color: meta.color }]}>{slot}</Text>
             </View>
           ))}
