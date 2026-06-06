@@ -70,14 +70,23 @@ export default function DashboardScreen({ navigation }) {
       let boardStatus;
       // Use explicit status field when present (new tasks)
       switch (t.status) {
-        case "scheduled": boardStatus = "ON TIME";  break;
-        case "delayed":   boardStatus = "DELAYED";  break;
-        case "inflight":  boardStatus = "ACTIVE";   break;
-        case "landed":    boardStatus = "LANDED";   break;
+        case "scheduled":
+          boardStatus = "ON TIME";
+          break;
+        case "delayed":
+          boardStatus = "DELAYED";
+          break;
+        case "inflight":
+          boardStatus = "ACTIVE";
+          break;
+        case "landed":
+          boardStatus = "LANDED";
+          break;
         default:
           // Legacy tasks without status field
           if (!t.active) boardStatus = "LANDED";
-          else if (new Date(t.startDate).getTime() <= now) boardStatus = "ACTIVE";
+          else if (new Date(t.startDate).getTime() <= now)
+            boardStatus = "ACTIVE";
           else boardStatus = "ON TIME";
       }
       return { ...t, boardStatus };
