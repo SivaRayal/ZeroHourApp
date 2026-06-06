@@ -19,6 +19,26 @@ import SectionHeader from "../components/SectionHeader";
 
 const FREQ_OPTIONS = [1, 2, 3, 4, 5, 6];
 
+// ─── Status definitions ───────────────────────────────────────────────────────
+// 'scheduled' – created, departure time in the future
+// 'delayed'   – departure time has passed, not yet TAKEOFF'd
+// 'inflight'  – user tapped TAKEOFF
+// 'landed'    – user tapped LAND
+
+const FILTERS = [
+  { key: "scheduled", label: "SCHEDULED", color: COLORS.neonGreen },
+  { key: "delayed",   label: "DELAYED",   color: COLORS.neonAmber },
+  { key: "inflight",  label: "IN FLIGHT", color: COLORS.neonBlue  },
+  { key: "landed",    label: "LANDED",    color: COLORS.textSecondary },
+];
+
+/** Derive status for tasks that pre-date the status field. */
+function deriveStatus(task, now) {
+  if (task.status) return task.status;
+  if (!task.active) return "landed";
+  return new Date(task.startDate).getTime() > now ? "scheduled" : "delayed";
+}
+
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
@@ -411,17 +431,57 @@ export default function MindScreen() {
     slots: ["09:00"],
     hasEndDate: false,
   });
-  const [filter, setFilter] = useState("active");
+  const [filter, setFilter] = useState("scheduled");
 
   useFocusEffect(
     useCallback(() => {
       loadTasks();
+      // Re-check for newly-delayed tasks every 60 s while screen is open
+      const interval = setInterval(advanceDelayed, 60000);
+      return () => clearInterval(interval);
     }, []),
   );
 
+  /** Load tasks, migrate legacy status, and advance scheduled→delayed. */
   const loadTasks = async () => {
-    const t = await Storage.getTasks();
-    setTasks(t);
+    const raw = await Storage.getTasks();
+    const now = Date.now();
+    let dirty = false;
+    const migrated = raw.map((t) => {
+      const status = deriveStatus(t, now);
+      // Auto-advance: scheduled → delayed when departure time has passed
+      if (status === "scheduled" && new Date(t.startDate).getTime() <= now) {
+        dirty = true;
+        return { ...t, status: "delayed" };
+      }
+      if (status !== t.status) {
+        dirty = true;
+        return { ...t, status };
+      }
+      return t;
+    });
+    if (dirty) await Storage.saveTasks(migrated);
+    setTasks(migrated);
+  };
+
+  /** Lightweight check (runs every 60 s): advance any newly-delayed tasks. */
+  const advanceDelayed = async () => {
+    const now = Date.now();
+    setTasks((prev) => {
+      let dirty = false;
+      const next = prev.map((t) => {
+        if (
+          t.status === "scheduled" &&
+          new Date(t.startDate).getTime() <= now
+        ) {
+          dirty = true;
+          return { ...t, status: "delayed" };
+        }
+        return t;
+      });
+      if (dirty) Storage.saveTasks(next);
+      return dirty ? next : prev;
+    });
   };
 
   const openForm = () => {
@@ -443,6 +503,8 @@ export default function MindScreen() {
       Alert.alert("BOARDING DENIED", "Task name is required");
       return;
     }
+    const depMs = new Date(form.startDate).getTime();
+    const initialStatus = depMs > Date.now() ? "scheduled" : "delayed";
     const task = {
       id: genId(),
       name: form.name.trim(),
@@ -452,6 +514,7 @@ export default function MindScreen() {
       freq: form.freq,
       slots: form.slots.filter(Boolean),
       active: true,
+      status: initialStatus,
       createdAt: Date.now(),
       type: "task",
     };
@@ -460,17 +523,34 @@ export default function MindScreen() {
     await scheduleReminder(task);
     setTasks(updated);
     setShowForm(false);
+    setFilter(initialStatus); // jump to the tab where the new task landed
   };
 
-  const toggleTask = async (id) => {
-    const task = tasks.find((t) => t.id === id);
+  /** TAKEOFF: scheduled / delayed → inflight */
+  const takeoffTask = async (id) => {
     const updated = tasks.map((t) =>
-      t.id === id ? { ...t, active: !t.active } : t,
+      t.id === id ? { ...t, status: "inflight", active: true } : t,
     );
     await Storage.saveTasks(updated);
-    if (task?.active) {
-      await Storage.markDayComplete(format(new Date(), "yyyy-MM-dd"));
-    }
+    setTasks(updated);
+  };
+
+  /** LAND: inflight → landed */
+  const landTask = async (id) => {
+    const updated = tasks.map((t) =>
+      t.id === id ? { ...t, status: "landed", active: false } : t,
+    );
+    await Storage.saveTasks(updated);
+    await Storage.markDayComplete(format(new Date(), "yyyy-MM-dd"));
+    setTasks(updated);
+  };
+
+  /** RESUME: landed → inflight */
+  const resumeTask = async (id) => {
+    const updated = tasks.map((t) =>
+      t.id === id ? { ...t, status: "inflight", active: true } : t,
+    );
+    await Storage.saveTasks(updated);
     setTasks(updated);
   };
 
@@ -492,9 +572,13 @@ export default function MindScreen() {
     ]);
   };
 
-  const filtered = tasks.filter((t) =>
-    filter === "active" ? t.active : !t.active,
-  );
+  const filtered = tasks.filter((t) => t.status === filter);
+
+  // Live counts for tab badges
+  const counts = FILTERS.reduce((acc, f) => {
+    acc[f.key] = tasks.filter((t) => t.status === f.key).length;
+    return acc;
+  }, {});
 
   return (
     <LinearGradient
@@ -523,29 +607,55 @@ export default function MindScreen() {
       {/* Section 2: Task list — extra top spacing */}
       <View style={[styles.sectionBlock, { marginTop: SPACING.lg }]}>
         <SectionHeader
-          title="MANAGE YOUR ACTIVE & COMPLETED TASKS"
-          sub="SCHEDULED FLIGHTS"
+          title="MANAGE YOUR FLIGHTS"
+          sub="TRACK YOUR SCHEDULED FLIGHTS"
           color={COLORS.neonBlue}
         />
-        <View style={styles.filterRow}>
-          {["active", "completed"].map((f) => (
+      </View>
+      {/* Filter tabs — horizontally scrollable, one per status */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterScroll}
+        contentContainerStyle={styles.filterScrollContent}
+      >
+        {FILTERS.map((f) => {
+          const active = filter === f.key;
+          const cnt = counts[f.key] || 0;
+          return (
             <TouchableOpacity
-              key={f}
-              style={[styles.filterTab, filter === f && styles.filterTabActive]}
-              onPress={() => setFilter(f)}
+              key={f.key}
+              style={[
+                styles.filterTab,
+                active && {
+                  borderColor: f.color,
+                  backgroundColor: f.color + "18",
+                },
+              ]}
+              onPress={() => setFilter(f.key)}
             >
               <Text
                 style={[
                   styles.filterText,
-                  filter === f && styles.filterTextActive,
+                  active && { color: f.color },
                 ]}
               >
-                {f === "active" ? "IN FLIGHT" : "LANDED"}
+                {f.label}
               </Text>
+              {cnt > 0 && (
+                <View
+                  style={[
+                    styles.filterBadge,
+                    { backgroundColor: active ? f.color : COLORS.textDim },
+                  ]}
+                >
+                  <Text style={styles.filterBadgeText}>{cnt}</Text>
+                </View>
+              )}
             </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+          );
+        })}
+      </ScrollView>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -554,16 +664,32 @@ export default function MindScreen() {
       >
         {filtered.length === 0 && (
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.emptyText}>NO SCHEDULED FLIGHTS</Text>
-            <Text style={styles.emptySub}>Tap + SCHEDULE to create a task</Text>
+            <Text style={styles.emptyIcon}>
+              {filter === "scheduled" ? "🗓️"
+               : filter === "delayed" ? "⏰"
+               : filter === "inflight" ? "✈️"
+               : "🛬"}
+            </Text>
+            <Text style={styles.emptyText}>
+              {filter === "scheduled" ? "NO UPCOMING FLIGHTS"
+               : filter === "delayed" ? "NO DELAYED FLIGHTS"
+               : filter === "inflight" ? "NO FLIGHTS IN PROGRESS"
+               : "NO LANDED FLIGHTS"}
+            </Text>
+            <Text style={styles.emptySub}>
+              {filter === "scheduled" || filter === "delayed"
+                ? "Tap + SCHEDULE to plan a new task"
+                : "Tap TAKEOFF on a scheduled task to start"}
+            </Text>
           </View>
         )}
         {filtered.map((task) => (
           <TaskCard
             key={task.id}
             task={task}
-            onToggle={toggleTask}
+            onTakeoff={takeoffTask}
+            onLand={landTask}
+            onResume={resumeTask}
             onDelete={deleteTask}
           />
         ))}
@@ -754,58 +880,84 @@ function Field({ label, required, children }) {
 }
 
 // ─── Task Card ────────────────────────────────────────────────────────────────
-function TaskCard({ task, onToggle, onDelete }) {
-  const statusColor = task.active ? COLORS.neonBlue : COLORS.textDim;
+const STATUS_META = {
+  scheduled: { color: COLORS.neonGreen,     label: "SCHEDULED",  dot: COLORS.neonGreen   },
+  delayed:   { color: COLORS.neonAmber,     label: "DELAYED",    dot: COLORS.neonAmber   },
+  inflight:  { color: COLORS.neonBlue,      label: "IN FLIGHT",  dot: COLORS.neonBlue    },
+  landed:    { color: COLORS.textSecondary, label: "LANDED",     dot: COLORS.textDim     },
+};
+
+function TaskCard({ task, onTakeoff, onLand, onResume, onDelete }) {
+  const s = task.status || (task.active ? "inflight" : "landed");
+  const meta = STATUS_META[s] || STATUS_META.scheduled;
+
   return (
     <View
-      style={[
-        tcs.card,
-        { borderColor: task.active ? COLORS.neonBlue + "44" : "#1A2035" },
-      ]}
+      style={[tcs.card, { borderColor: meta.color + "44" }]}
     >
+      {/* Status pill */}
+      <View style={[tcs.statusPill, { backgroundColor: meta.color + "22", borderColor: meta.color + "55" }]}>
+        <View style={[tcs.statusDot, { backgroundColor: meta.color }]} />
+        <Text style={[tcs.statusLabel, { color: meta.color }]}>{meta.label}</Text>
+      </View>
+
       <View style={tcs.top}>
-        <View style={tcs.nameRow}>
-          <View style={[tcs.dot, { backgroundColor: statusColor }]} />
-          <Text style={tcs.name}>{task.name}</Text>
-        </View>
+        <Text style={tcs.name} numberOfLines={2}>{task.name}</Text>
         <View style={tcs.actions}>
-          <TouchableOpacity
-            onPress={() => onToggle(task.id)}
-            style={tcs.actionBtn}
-          >
-            <Text
-              style={{
-                color: task.active ? COLORS.neonAmber : COLORS.neonGreen,
-                fontSize: 10,
-                letterSpacing: 1,
-              }}
+          {/* Primary action — varies by status */}
+          {(s === "scheduled" || s === "delayed") && (
+            <TouchableOpacity
+              onPress={() => onTakeoff(task.id)}
+              style={[tcs.actionBtn, { borderColor: meta.color }]}
             >
-              {task.active ? "LAND" : "RESUME"}
-            </Text>
-          </TouchableOpacity>
+              <Text style={[tcs.actionBtnText, { color: meta.color }]}>
+                ✈ TAKEOFF
+              </Text>
+            </TouchableOpacity>
+          )}
+          {s === "inflight" && (
+            <TouchableOpacity
+              onPress={() => onLand(task.id)}
+              style={[tcs.actionBtn, { borderColor: COLORS.neonRed }]}
+            >
+              <Text style={[tcs.actionBtnText, { color: COLORS.neonRed }]}>
+                ✓ LAND
+              </Text>
+            </TouchableOpacity>
+          )}
+          {s === "landed" && (
+            <TouchableOpacity
+              onPress={() => onResume(task.id)}
+              style={[tcs.actionBtn, { borderColor: COLORS.neonGreen }]}
+            >
+              <Text style={[tcs.actionBtnText, { color: COLORS.neonGreen }]}>
+                ▶ RESUME
+              </Text>
+            </TouchableOpacity>
+          )}
+          {/* Delete — always visible */}
           <TouchableOpacity
             onPress={() => onDelete(task.id)}
-            style={tcs.actionBtn}
+            style={tcs.delBtn}
           >
-            <Text
-              style={{ color: COLORS.neonRed, fontSize: 10, letterSpacing: 1 }}
-            >
-              DEL
-            </Text>
+            <Text style={tcs.delBtnText}>DEL</Text>
           </TouchableOpacity>
         </View>
       </View>
+
       {task.desc ? <Text style={tcs.desc}>{task.desc}</Text> : null}
+
       <View style={tcs.metaRow}>
         <MetaTag icon="🛫" label={task.startDate} />
         {task.endDate ? <MetaTag icon="🛬" label={task.endDate} /> : null}
         <MetaTag icon="🔁" label={`${task.freq}x/day`} />
       </View>
+
       {task.slots?.length > 0 && (
         <View style={tcs.slotsRow}>
-          {task.slots.map((s, i) => (
-            <View key={i} style={tcs.slotChip}>
-              <Text style={tcs.slotText}>{s}</Text>
+          {task.slots.map((slot, i) => (
+            <View key={i} style={[tcs.slotChip, { borderColor: meta.color + "44" }]}>
+              <Text style={[tcs.slotText, { color: meta.color }]}>{slot}</Text>
             </View>
           ))}
         </View>
@@ -835,30 +987,56 @@ const tcs = StyleSheet.create({
     padding: SPACING.md,
     marginBottom: SPACING.sm,
   },
+  statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 8,
+    gap: 5,
+  },
+  statusDot: { width: 5, height: 5, borderRadius: 3 },
+  statusLabel: { fontSize: 9, fontWeight: "700", letterSpacing: 2 },
   top: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 6,
+    gap: 8,
   },
-  nameRow: { flexDirection: "row", alignItems: "center", flex: 1 },
-  dot: { width: 7, height: 7, borderRadius: 4, marginRight: 8 },
   name: {
     color: COLORS.textPrimary,
     fontSize: 14,
     fontWeight: "700",
     letterSpacing: 1,
     flex: 1,
+    marginTop: 2,
   },
-  actions: { flexDirection: "row", gap: 6 },
+  actions: { flexDirection: "row", gap: 6, flexShrink: 0 },
   actionBtn: {
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: RADIUS.sm,
+    borderWidth: 1,
     backgroundColor: "#141820",
     alignItems: "center",
     justifyContent: "center",
   },
+  actionBtnText: { fontSize: 10, fontWeight: "700", letterSpacing: 1 },
+  delBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.neonRed + "55",
+    backgroundColor: "#141820",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  delBtnText: { color: COLORS.neonRed, fontSize: 10, fontWeight: "700", letterSpacing: 1 },
   desc: {
     color: COLORS.textSecondary,
     fontSize: 12,
@@ -868,14 +1046,13 @@ const tcs = StyleSheet.create({
   metaRow: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
   slotsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
   slotChip: {
-    backgroundColor: COLORS.neonBlue + "22",
+    backgroundColor: "#141820",
     borderRadius: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: COLORS.neonBlue + "44",
   },
-  slotText: { color: COLORS.neonBlue, fontSize: 10, fontWeight: "700" },
+  slotText: { fontSize: 10, fontWeight: "700" },
 });
 
 const styles = StyleSheet.create({
@@ -914,31 +1091,42 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 2,
   },
-  filterRow: {
-    flexDirection: "row",
+  filterScroll: { marginBottom: SPACING.sm },
+  filterScrollContent: {
+    paddingHorizontal: SPACING.md,
     gap: SPACING.sm,
-    marginBottom: SPACING.sm,
+    paddingVertical: 2,
   },
   filterTab: {
-    flex: 1,
-    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
     borderRadius: RADIUS.sm,
     backgroundColor: COLORS.bgCard,
     borderWidth: 1,
     borderColor: "#1A2035",
-    alignItems: "center",
-  },
-  filterTabActive: {
-    borderColor: COLORS.neonBlue,
-    backgroundColor: COLORS.neonBlue + "18",
   },
   filterText: {
     color: COLORS.textDim,
     fontSize: 10,
-    letterSpacing: 3,
+    letterSpacing: 2,
     fontWeight: "700",
   },
-  filterTextActive: { color: COLORS.neonBlue },
+  filterBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  filterBadgeText: {
+    color: "#05070D",
+    fontSize: 9,
+    fontWeight: "900",
+  },
   empty: { alignItems: "center", marginTop: 80 },
   emptyIcon: { fontSize: 44, marginBottom: 16 },
   emptyText: {

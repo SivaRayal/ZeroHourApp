@@ -61,22 +61,26 @@ export default function DashboardScreen({ navigation }) {
   const streak = getCurrentStreak(log);
   const badges = getAchievedBadges(streak);
 
-  // All tasks — active and completed — sorted by startDate, cap at 8
+  // All tasks sorted by startDate, cap at 8 rows on the board
   const now = Date.now();
   const taskBoard = tasks
     .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
     .slice(0, 8)
     .map((t) => {
-      const startMs = new Date(t.startDate).getTime();
-      let status;
-      if (!t.active) {
-        status = "LANDED";
-      } else if (startMs <= now) {
-        status = "ACTIVE";
-      } else {
-        status = "ON TIME";
+      let boardStatus;
+      // Use explicit status field when present (new tasks)
+      switch (t.status) {
+        case "scheduled": boardStatus = "ON TIME";  break;
+        case "delayed":   boardStatus = "DELAYED";  break;
+        case "inflight":  boardStatus = "ACTIVE";   break;
+        case "landed":    boardStatus = "LANDED";   break;
+        default:
+          // Legacy tasks without status field
+          if (!t.active) boardStatus = "LANDED";
+          else if (new Date(t.startDate).getTime() <= now) boardStatus = "ACTIVE";
+          else boardStatus = "ON TIME";
       }
-      return { ...t, boardStatus: status };
+      return { ...t, boardStatus };
     });
 
   const timeStr = format(time, "HH:mm");
