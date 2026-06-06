@@ -170,8 +170,8 @@ export default function SoulScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.screenTag}>TERMINAL S · SOUL</Text>
           <Text style={styles.screenTitle}>FOCUS TIMER</Text>
+          <Text style={styles.screenTag}>TERMINAL S · SOUL</Text>
         </View>
         <View style={styles.sectionBlock}>
           <SectionHeader
@@ -193,19 +193,18 @@ export default function SoulScreen() {
 
           <Animated.View
             style={[styles.clockCenter, { transform: [{ scale: pulseAnim }] }]}
-          >
-            <FlipClock
-              seconds={elapsed}
-              size={66}
-              color={running ? COLORS.neonPurple : COLORS.textSecondary}
-            />
-            {(running || paused) && (
-              <View style={styles.lapTimeRow}>
-                <Text style={styles.lapTimeLabel}>LAP {laps.length + 1}</Text>
-                <Text style={styles.lapTimeVal}>{formatTime(lapElapsed)}</Text>
-              </View>
-            )}
-          </Animated.View>
+          ></Animated.View>
+          <FlipClock
+            seconds={elapsed}
+            size={66}
+            color={running ? COLORS.neonPurple : COLORS.textSecondary}
+          />
+          {(running || paused) && (
+            <View style={styles.lapTimeRow}>
+              <Text style={styles.lapTimeLabel}>LAP {laps.length + 1}</Text>
+              <Text style={styles.lapTimeVal}>{formatTime(lapElapsed)}</Text>
+            </View>
+          )}
         </View>
 
         {/* Controls */}
@@ -285,7 +284,11 @@ export default function SoulScreen() {
         {/* Laps */}
         {laps.length > 0 && (
           <View style={styles.lapsSection}>
-            <SectionHeader title="LAP MANIFEST" sub={`${laps.length} LAPS RECORDED`} color={COLORS.neonPurple} />
+            <SectionHeader
+              title="LAP MANIFEST"
+              sub={`${laps.length} LAPS RECORDED`}
+              color={COLORS.neonPurple}
+            />
             {laps.map((lap) => (
               <View key={lap.n} style={styles.lapRow}>
                 <Text style={styles.lapN}>LAP {lap.n}</Text>
@@ -300,7 +303,11 @@ export default function SoulScreen() {
         {sessions.length > 0 && !running && !paused && (
           <View style={styles.sessionsSection}>
             <View style={styles.logHeaderRow}>
-              <SectionHeader title="FLIGHT LOG" sub="RECENT FOCUS SESSIONS" color={COLORS.neonPurple} />
+              <SectionHeader
+                title="FLIGHT LOG"
+                sub="RECENT FOCUS SESSIONS"
+                color={COLORS.neonPurple}
+              />
               <TouchableOpacity
                 style={styles.clearBtn}
                 onPress={handleClearSessions}
@@ -380,7 +387,11 @@ const styles = StyleSheet.create({
   sectionBlock: { paddingHorizontal: SPACING.lg },
   controls: { paddingHorizontal: SPACING.lg, marginBottom: SPACING.lg },
   mainBtn: { borderRadius: RADIUS.md, overflow: "hidden" },
-  mainBtnGrad: { paddingVertical: 18, alignItems: "center", justifyContent: "center" },
+  mainBtnGrad: {
+    paddingVertical: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   mainBtnText: {
     color: "#fff",
     fontWeight: "900",

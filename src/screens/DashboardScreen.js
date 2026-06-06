@@ -100,7 +100,7 @@ export default function DashboardScreen({ navigation }) {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.headerTag}>ZEROHOUR · TERMINAL</Text>
+            <Text style={styles.headerTag}>ZERO-HOUR</Text>
             <View
               style={{
                 flexDirection: "row",
@@ -114,9 +114,40 @@ export default function DashboardScreen({ navigation }) {
               </Text>
             </View>
           </View>
-          <View style={styles.clockBox}>
-            <Text style={styles.clockTime}>{timeStr}</Text>
-            <Text style={styles.clockDate}>{dateStr}</Text>
+        </View>
+
+        {/* Body-Mind-Soul Terminals */}
+        <View style={styles.section}>
+          <SectionHeader
+            title="SELECT YOUR DESTINATION"
+            sub="ZERO-HOUR's TERMINALS"
+          />
+          <View style={styles.terminalRow}>
+            <TerminalCard
+              icon="🧬"
+              title="BODY"
+              sub="FASTING"
+              color={COLORS.neonBlue}
+              active={fasting?.active}
+              activeLabel={fasting?.active ? "IN FLIGHT" : null}
+              onPress={() => navigation.navigate("Body")}
+            />
+            <TerminalCard
+              icon="☮️"
+              title="ACTION"
+              sub="TO-DO LIST"
+              color={COLORS.neonGreen}
+              active={tasks.some((t) => t.active)}
+              activeLabel={tasks.some((t) => t.active) ? "ACTIVE" : null}
+              onPress={() => navigation.navigate("Mind")}
+            />
+            <TerminalCard
+              icon="🎯"
+              title="MIND"
+              sub="FOCUS TIMER"
+              color={COLORS.neonPurple}
+              onPress={() => navigation.navigate("Soul")}
+            />
           </View>
         </View>
 
@@ -126,7 +157,7 @@ export default function DashboardScreen({ navigation }) {
             <SectionHeader
               title={
                 user
-                  ? `${user.name.toUpperCase()}'s · CONSISTENCY`
+                  ? `${user.name.toUpperCase()}'s · ACHIEVEMENTS`
                   : "YOUR · CONSISTENCY"
               }
               sub={`${streak} DAYS IN FLIGHT`}
@@ -157,47 +188,9 @@ export default function DashboardScreen({ navigation }) {
           </View>
         )}
 
-        {/* Body-Mind-Soul Terminals */}
-        <View style={styles.section}>
-          <SectionHeader
-            title="SELECT YOUR DESTINATION"
-            sub="ZERO-HOUR's TERMINALS"
-          />
-          <View style={styles.terminalRow}>
-            <TerminalCard
-              icon="🧬"
-              title="BODY"
-              sub="FASTING TRACKER"
-              color={COLORS.neonGreen}
-              active={fasting?.active}
-              activeLabel={fasting?.active ? "IN FLIGHT" : null}
-              onPress={() => navigation.navigate("Body")}
-            />
-            <TerminalCard
-              icon="☮️"
-              title="MIND"
-              sub="TO-DO LIST"
-              color={COLORS.neonBlue}
-              active={tasks.some((t) => t.active)}
-              activeLabel={tasks.some((t) => t.active) ? "ACTIVE" : null}
-              onPress={() => navigation.navigate("Mind")}
-            />
-            <TerminalCard
-              icon="⏳"
-              title="SOUL"
-              sub="FOCUS TIMER"
-              color={COLORS.neonPurple}
-              onPress={() => navigation.navigate("Soul")}
-            />
-          </View>
-        </View>
-
         {/* Arrivals Board */}
         <View style={styles.section}>
-          <SectionHeader
-            title="YOUR SCHEDULED WORKFLOWS"
-            sub="ARRIVALS · DEPARTURES"
-          />
+          <SectionHeader title="YOUR SCHEDULE" sub="ARRIVALS · DEPARTURES" />
           <View style={styles.boardHeader}>
             <Text style={styles.boardCol}>GATE</Text>
             <Text style={[styles.boardCol, { flex: 1 }]}>DESTINATION</Text>
@@ -220,7 +213,7 @@ export default function DashboardScreen({ navigation }) {
             <View style={styles.emptyBoard}>
               <Text style={styles.emptyText}>NO SCHEDULED FLIGHTS</Text>
               <Text style={styles.emptySub}>
-                Schedule tasks in MIND or BODY terminals
+                Schedule tasks in ACTION or BODY terminals.
               </Text>
             </View>
           ) : (
@@ -296,7 +289,7 @@ const styles = StyleSheet.create({
   },
   headerTag: {
     color: COLORS.neonAmber,
-    fontSize: 9,
+    fontSize: 28,
     letterSpacing: 4,
     fontWeight: "700",
   },

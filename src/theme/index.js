@@ -132,10 +132,40 @@ export const FASTING_STAGES = [
 ];
 
 export const FASTING_WINDOWS = [
-  { label: "12:12", hours: 12, desc: "Beginner — Gate Opens" },
-  { label: "14:10", hours: 14, desc: "Standard — Short Haul" },
-  { label: "16:8", hours: 16, desc: "Popular — Domestic Flight" },
-  { label: "18:6", hours: 18, desc: "Advanced — Long Haul" },
-  { label: "20:4", hours: 20, desc: "Expert — Intercontinental" },
-  { label: "24:0", hours: 24, desc: "Elite — Around the World" },
+  {
+    label: "12:12",
+    hours: 12,
+    desc: "Beginner — Gate Opens",
+    subdesc: "12H - Fasting window | 12H - Breaking Fast",
+  },
+  {
+    label: "14:10",
+    hours: 14,
+    desc: "Standard — Short Haul",
+    subdesc: "14H - Fasting window | 10H - Breaking Fast",
+  },
+  {
+    label: "16:8",
+    hours: 16,
+    desc: "Popular — Domestic Flight",
+    subdesc: "16H - Fasting window | 8H - Breaking Fast",
+  },
+  {
+    label: "18:6",
+    hours: 18,
+    desc: "Advanced — Long Haul",
+    subdesc: "18H - Fasting window | 6H - Breaking Fast",
+  },
+  {
+    label: "20:4",
+    hours: 20,
+    desc: "Expert — Intercontinental",
+    subdesc: "20H - Fasting window | 4H - Breaking Fast",
+  },
+  {
+    label: "24:0",
+    hours: 24,
+    desc: "Elite — Around the World",
+    subdesc: "24H - Fasting window | No - Breaking Fast",
+  },
 ];

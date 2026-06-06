@@ -112,31 +112,56 @@ const drum = StyleSheet.create({
 });
 
 // ─── Inline Date+Time Picker ─────────────────────────────────────────────────
-const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
-const DAYS   = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0"));
-const YEARS  = Array.from({ length: 6 },  (_, i) => String(2024 + i));
-const HOURS  = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
-const MINS   = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "0"));
-const AMPM   = ["AM", "PM"];
+const MONTHS = [
+  "JAN",
+  "FEB",
+  "MAR",
+  "APR",
+  "MAY",
+  "JUN",
+  "JUL",
+  "AUG",
+  "SEP",
+  "OCT",
+  "NOV",
+  "DEC",
+];
+const DAYS = Array.from({ length: 31 }, (_, i) =>
+  String(i + 1).padStart(2, "0"),
+);
+const YEARS = Array.from({ length: 6 }, (_, i) => String(2024 + i));
+const HOURS = Array.from({ length: 12 }, (_, i) =>
+  String(i + 1).padStart(2, "0"),
+);
+const MINS = Array.from({ length: 12 }, (_, i) =>
+  String(i * 5).padStart(2, "0"),
+);
+const AMPM = ["AM", "PM"];
 
 function parseToIndices(dateStr) {
   // dateStr: "yyyy-MM-dd HH:mm" or falsy
   const d = dateStr ? new Date(dateStr.replace(" ", "T")) : new Date();
-  const mo = d.getMonth();                                     // 0-11
-  const dy = d.getDate() - 1;                                  // 0-30
+  const mo = d.getMonth(); // 0-11
+  const dy = d.getDate() - 1; // 0-30
   const yr = Math.max(0, Math.min(d.getFullYear() - 2024, YEARS.length - 1));
   const rawH = d.getHours();
-  const ap   = rawH >= 12 ? 1 : 0;
-  const h12  = rawH % 12 === 0 ? 12 : rawH % 12;              // 1-12
-  const hi   = h12 - 1;                                        // 0-11
-  const mi   = Math.min(Math.round(d.getMinutes() / 5), 11);  // 0-11
+  const ap = rawH >= 12 ? 1 : 0;
+  const h12 = rawH % 12 === 0 ? 12 : rawH % 12; // 1-12
+  const hi = h12 - 1; // 0-11
+  const mi = Math.min(Math.round(d.getMinutes() / 5), 11); // 0-11
   return { mo, dy, yr, hi, mi, ap };
 }
 
 function buildDateStr(mo, dy, yr, hi, mi, ap) {
-  const h12 = hi + 1;                                          // 1-12
-  const h24 = ap === 0 ? (h12 === 12 ? 0 : h12) : (h12 === 12 ? 12 : h12 + 12);
-  const date = new Date(parseInt(YEARS[yr]), mo, parseInt(DAYS[dy]), h24, mi * 5);
+  const h12 = hi + 1; // 1-12
+  const h24 = ap === 0 ? (h12 === 12 ? 0 : h12) : h12 === 12 ? 12 : h12 + 12;
+  const date = new Date(
+    parseInt(YEARS[yr]),
+    mo,
+    parseInt(DAYS[dy]),
+    h24,
+    mi * 5,
+  );
   return format(date, "yyyy-MM-dd HH:mm");
 }
 
@@ -163,21 +188,69 @@ function InlineDateTimePicker({ value, onChange }) {
       <View style={pk.block}>
         <Text style={pk.blockLabel}>DATE</Text>
         <View style={pk.row}>
-          <DrumRoll items={MONTHS} selectedIndex={mo} onChange={(i) => { setMo(i); fire({ mo: i }); }} width={52} />
+          <DrumRoll
+            items={MONTHS}
+            selectedIndex={mo}
+            onChange={(i) => {
+              setMo(i);
+              fire({ mo: i });
+            }}
+            width={52}
+          />
           <View style={pk.divider} />
-          <DrumRoll items={DAYS}   selectedIndex={dy} onChange={(i) => { setDy(i); fire({ dy: i }); }} width={42} />
+          <DrumRoll
+            items={DAYS}
+            selectedIndex={dy}
+            onChange={(i) => {
+              setDy(i);
+              fire({ dy: i });
+            }}
+            width={42}
+          />
           <View style={pk.divider} />
-          <DrumRoll items={YEARS}  selectedIndex={yr} onChange={(i) => { setYr(i); fire({ yr: i }); }} width={58} />
+          <DrumRoll
+            items={YEARS}
+            selectedIndex={yr}
+            onChange={(i) => {
+              setYr(i);
+              fire({ yr: i });
+            }}
+            width={58}
+          />
         </View>
       </View>
       <View style={pk.block}>
         <Text style={pk.blockLabel}>TIME</Text>
         <View style={pk.row}>
-          <DrumRoll items={HOURS} selectedIndex={hi} onChange={(i) => { setHi(i); fire({ hi: i }); }} width={46} />
+          <DrumRoll
+            items={HOURS}
+            selectedIndex={hi}
+            onChange={(i) => {
+              setHi(i);
+              fire({ hi: i });
+            }}
+            width={46}
+          />
           <Text style={pk.colon}>:</Text>
-          <DrumRoll items={MINS}  selectedIndex={mi} onChange={(i) => { setMi(i); fire({ mi: i }); }} width={46} />
+          <DrumRoll
+            items={MINS}
+            selectedIndex={mi}
+            onChange={(i) => {
+              setMi(i);
+              fire({ mi: i });
+            }}
+            width={46}
+          />
           <View style={pk.divider} />
-          <DrumRoll items={AMPM}  selectedIndex={ap} onChange={(i) => { setAp(i); fire({ ap: i }); }} width={44} />
+          <DrumRoll
+            items={AMPM}
+            selectedIndex={ap}
+            onChange={(i) => {
+              setAp(i);
+              fire({ ap: i });
+            }}
+            width={44}
+          />
         </View>
       </View>
     </View>
@@ -231,24 +304,56 @@ function TimeScrollPicker({ value, onChange }) {
   const fireSlot = (overrides) => {
     const s = { ...cur.current, ...overrides };
     const h12 = s.hi + 1;
-    const h24 = s.ap === 0 ? (h12 === 12 ? 0 : h12) : (h12 === 12 ? 12 : h12 + 12);
-    onChange(`${String(h24).padStart(2, "0")}:${String(s.mi * 5).padStart(2, "0")}`);
+    const h24 =
+      s.ap === 0 ? (h12 === 12 ? 0 : h12) : h12 === 12 ? 12 : h12 + 12;
+    onChange(
+      `${String(h24).padStart(2, "0")}:${String(s.mi * 5).padStart(2, "0")}`,
+    );
   };
 
   return (
     <View style={pk.row}>
-      <DrumRoll items={HOURS} selectedIndex={hi} onChange={(i) => { setHi(i); fireSlot({ hi: i }); }} width={46} />
+      <DrumRoll
+        items={HOURS}
+        selectedIndex={hi}
+        onChange={(i) => {
+          setHi(i);
+          fireSlot({ hi: i });
+        }}
+        width={46}
+      />
       <Text style={pk.colon}>:</Text>
-      <DrumRoll items={MINS}  selectedIndex={mi} onChange={(i) => { setMi(i); fireSlot({ mi: i }); }} width={46} />
+      <DrumRoll
+        items={MINS}
+        selectedIndex={mi}
+        onChange={(i) => {
+          setMi(i);
+          fireSlot({ mi: i });
+        }}
+        width={46}
+      />
       <View style={pk.divider} />
-      <DrumRoll items={AMPM}  selectedIndex={ap} onChange={(i) => { setAp(i); fireSlot({ ap: i }); }} width={44} />
+      <DrumRoll
+        items={AMPM}
+        selectedIndex={ap}
+        onChange={(i) => {
+          setAp(i);
+          fireSlot({ ap: i });
+        }}
+        width={44}
+      />
     </View>
   );
 }
 
 const ts = StyleSheet.create({
   slotRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  slotLabel: { color: COLORS.textDim, fontSize: 10, letterSpacing: 2, width: 60 },
+  slotLabel: {
+    color: COLORS.textDim,
+    fontSize: 10,
+    letterSpacing: 2,
+    width: 60,
+  },
 });
 
 const pk = StyleSheet.create({
@@ -269,7 +374,12 @@ const pk = StyleSheet.create({
     marginBottom: 4,
   },
   row: { flexDirection: "row", alignItems: "center" },
-  divider: { width: 1, height: 36, backgroundColor: COLORS.border, marginHorizontal: 6 },
+  divider: {
+    width: 1,
+    height: 36,
+    backgroundColor: COLORS.border,
+    marginHorizontal: 6,
+  },
   colon: {
     color: COLORS.neonBlue,
     fontSize: 18,
@@ -384,8 +494,8 @@ export default function MindScreen() {
     >
       <View style={styles.header}>
         <View>
-          <Text style={styles.screenTitle}>COMMAND CONTROL</Text>
           <Text style={styles.screenTag}>TERMINAL M · MIND</Text>
+          <Text style={styles.screenTitle}>COMMAND CONTROL</Text>
         </View>
       </View>
 
@@ -505,17 +615,25 @@ export default function MindScreen() {
                         setForm({ ...form, hasEndDate: false, endDate: "" })
                       }
                     >
-                      <Text style={styles.clearArrivalText}>✕ CLEAR ARRIVAL</Text>
+                      <Text style={styles.clearArrivalText}>
+                        ✕ CLEAR ARRIVAL
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
                   <TouchableOpacity
                     style={styles.setArrivalBtn}
                     onPress={() =>
-                      setForm({ ...form, hasEndDate: true, endDate: form.startDate })
+                      setForm({
+                        ...form,
+                        hasEndDate: true,
+                        endDate: form.startDate,
+                      })
                     }
                   >
-                    <Text style={styles.setArrivalText}>+ SET ARRIVAL TIME</Text>
+                    <Text style={styles.setArrivalText}>
+                      + SET ARRIVAL TIME
+                    </Text>
                   </TouchableOpacity>
                 )}
               </Field>

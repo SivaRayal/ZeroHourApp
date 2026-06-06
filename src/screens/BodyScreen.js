@@ -231,8 +231,8 @@ export default function BodyScreen() {
       <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
         {/* Header */}
         <View style={styles.header}>
+          <Text style={styles.screenTag}>TERMINAL - F · FASTING</Text>
           <Text style={styles.screenTitle}>FASTING TRACKER</Text>
-          <Text style={styles.screenTag}>TERMINAL - B · BODY</Text>
         </View>
 
         {fasting?.active ? (
@@ -255,8 +255,8 @@ export default function BodyScreen() {
       <Modal visible={showPicker} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>SELECT FLIGHT ROUTE</Text>
-            <Text style={styles.modalSub}>Choose your fasting window</Text>
+            <Text style={styles.modalTitle}>CHOOSE YOUR FASTING WINDOW</Text>
+            <Text style={styles.modalSub}>Select Flight Route</Text>
             <ScrollView>
               {FASTING_WINDOWS.map((w) => (
                 <TouchableOpacity
@@ -268,6 +268,7 @@ export default function BodyScreen() {
                   <View style={styles.windowLabel}>
                     <Text style={styles.windowName}>{w.label}</Text>
                     <Text style={styles.windowDesc}>{w.desc}</Text>
+                    <Text style={styles.windowDesc}>{w.subdesc}</Text>
                   </View>
                   <Text style={styles.windowHours}>{w.hours}H</Text>
                 </TouchableOpacity>
@@ -437,7 +438,7 @@ function IdleState({ onStart }) {
 
       <View style={styles.stageSectionHeader}>
         <SectionHeader
-          title="FLIGHT STAGES"
+          title="FASTING STAGES"
           sub="METABOLIC MILESTONES DURING YOUR FAST"
           color={COLORS.neonGreen}
         />
