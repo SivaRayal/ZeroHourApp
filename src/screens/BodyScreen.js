@@ -24,10 +24,16 @@ import { Storage } from "../store/storage";
 import FlipClock from "../components/FlipClock";
 import NeonRing from "../components/NeonRing";
 import SectionHeader from "../components/SectionHeader";
+import DisclaimerModal from "../components/DisclaimerModal";
 import {
   scheduleFastingReminder,
   cancelNotification,
 } from "../utils/notifications";
+
+const FASTING_DISCLAIMER_BODY =
+  'Fasting may not be suitable for everyone. Consult a healthcare professional before starting a fasting routine, especially if you have a medical condition, are pregnant, nursing, or taking medications.\n\n' +
+  'This app provides tracking tools only and does not offer medical advice. The app is not responsible for any medical illness caused due to excess fasting.\n\n' +
+  'Use at your own risk.';
 
 const { width, height } = Dimensions.get("window");
 
@@ -44,6 +50,7 @@ export default function BodyScreen() {
   const [fasting, setFasting] = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
+  const [showFastDisclaimer, setShowFastDisclaimer] = useState(false);
   const [currentStage, setCurrentStage] = useState(0);
 
   const bgOpacity = useRef(new Animated.Value(0)).current;
@@ -247,11 +254,25 @@ export default function BodyScreen() {
             stageAnim={stageAnim}
           />
         ) : (
-          <IdleState onStart={() => setShowPicker(true)} />
+          <IdleState onStart={() => setShowFastDisclaimer(true)} />
         )}
       </ScrollView>
 
       {/* Window Picker Modal */}
+      {/* Fasting disclaimer — shown before the window picker */}
+      <DisclaimerModal
+        visible={showFastDisclaimer}
+        icon="⚠️"
+        title="HEALTH NOTICE"
+        body={FASTING_DISCLAIMER_BODY}
+        confirmLabel="I UNDERSTAND · PROCEED"
+        accentColors={["#FFB800", "#FF6D00"]}
+        onConfirm={() => {
+          setShowFastDisclaimer(false);
+          setShowPicker(true);
+        }}
+      />
+
       <Modal visible={showPicker} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
