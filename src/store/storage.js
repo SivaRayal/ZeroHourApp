@@ -40,6 +40,7 @@ const KEYS = {
   SESSIONS: 'zh_sessions',
   STREAK: 'zh_streak',
   DAILY_LOG: 'zh_daily_log',
+  TASK_SESSION: 'zh_task_session', // active task countdown session
 };
 
 export const Storage = {
@@ -109,6 +110,21 @@ export const Storage = {
     const log = await Storage.getDailyLog();
     log[dateStr] = 'failed';
     await Storage.saveDailyLog(log);
+  },
+
+  // Active task countdown session
+  // Shape: { taskId, taskName, taskStartDate, countdown, totalSeconds, progressSeconds, status:'running'|'paused' }
+  async getTaskSession() {
+    try {
+      const raw = await StorageAdapter.getItem(KEYS.TASK_SESSION);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  },
+  async saveTaskSession(session) {
+    await StorageAdapter.setItem(KEYS.TASK_SESSION, JSON.stringify(session));
+  },
+  async clearTaskSession() {
+    await StorageAdapter.removeItem(KEYS.TASK_SESSION);
   },
 
   async clearAll() {

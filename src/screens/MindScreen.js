@@ -10,7 +10,7 @@ import {
   Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { format } from "date-fns";
 import { COLORS, SPACING, FONTS, RADIUS } from "../theme";
 import { Storage } from "../store/storage";
@@ -418,6 +418,7 @@ const pk = StyleSheet.create({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function MindScreen() {
+  const navigation = useNavigation();
   const [tasks, setTasks] = useState([]);
   const [showForm, setShowForm] = useState(false);
   // Incrementing key forces picker sub-trees to fully remount each time the
@@ -530,13 +531,55 @@ export default function MindScreen() {
     setFilter(initialStatus); // jump to the tab where the new task landed
   };
 
-  /** TAKEOFF: scheduled / delayed → inflight */
+  /** TAKEOFF: scheduled / delayed → inflight; save session, navigate to Soul. */
   const takeoffTask = async (id) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+
+    // Calculate countdown duration when both departure and arrival are set
+    let countdown = false;
+    let totalSeconds = 0;
+    let progressSeconds = 0;
+
+    if (task.startDate && task.endDate) {
+      const dep = new Date(task.startDate.replace(" ", "T")).getTime();
+      const arr = new Date(task.endDate.replace(" ", "T")).getTime();
+      const dur = Math.floor((arr - dep) / 1000);
+      if (dur > 0) {
+        countdown = true;
+        totalSeconds = dur;
+        progressSeconds = dur;
+      }
+    }
+
+    // Resume a previously-paused session for this task (restore remaining time)
+    const existingSession = await Storage.getTaskSession();
+    if (existingSession && existingSession.taskId === id) {
+      countdown = existingSession.countdown;
+      totalSeconds = existingSession.totalSeconds;
+      progressSeconds = existingSession.progressSeconds;
+    }
+
+    // Persist session — status:'running' tells SoulScreen to auto-start
+    await Storage.saveTaskSession({
+      taskId: id,
+      taskName: task.name,
+      taskStartDate: task.startDate || "",
+      countdown,
+      totalSeconds,
+      progressSeconds,
+      status: "running",
+    });
+
+    // Mark task as in-flight
     const updated = tasks.map((t) =>
       t.id === id ? { ...t, status: "inflight", active: true } : t,
     );
     await Storage.saveTasks(updated);
     setTasks(updated);
+
+    // Navigate to Soul tab so the countdown starts immediately
+    navigation.navigate("Soul");
   };
 
   /** LAND button tapped — show celebration modal first */
