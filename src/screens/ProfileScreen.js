@@ -107,8 +107,8 @@ export default function ProfileScreen({ onLogout }) {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.screenTitle}>PASSENGER FILE</Text>
           <Text style={styles.screenTag}>TERMINAL P · PROFILE</Text>
+          <Text style={styles.screenTitle}>PASSENGER FILE</Text>
         </View>
 
         {/* Profile card */}
@@ -171,7 +171,11 @@ export default function ProfileScreen({ onLogout }) {
 
         {/* Streak stats */}
         <View style={styles.section}>
-          <SectionHeader title="CONSISTENCY TRACKER" sub="COMPLETED DAYS & STREAK" color={COLORS.neonAmber} />
+          <SectionHeader
+            title="CONSISTENCY TRACKER"
+            sub="COMPLETED DAYS & STREAK"
+            color={COLORS.neonAmber}
+          />
           <View style={styles.streakStats}>
             <StatBox
               label="CURRENT STREAK"
@@ -274,7 +278,6 @@ export default function ProfileScreen({ onLogout }) {
     </LinearGradient>
   );
 }
-
 
 function StatBox({ label, value, color }) {
   return (
@@ -403,7 +406,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.neonGreen,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: SPACING.md,   // gap between avatar and info
+    marginRight: SPACING.md, // gap between avatar and info
   },
   avatarText: { color: COLORS.neonGreen, fontSize: 28, fontWeight: "900" },
   profileInfo: { flex: 1, justifyContent: "center" },

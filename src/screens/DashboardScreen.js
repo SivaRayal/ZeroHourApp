@@ -17,6 +17,7 @@ import { COLORS, SPACING, FONTS, RADIUS } from "../theme";
 import { Storage } from "../store/storage";
 import AirportBoardRow from "../components/AirportBoardRow";
 import { getCurrentStreak, getAchievedBadges } from "../utils/streakHelper";
+import { getTaskStatus, departureDateTime } from "../utils/taskStatus";
 import SectionHeader from "../components/SectionHeader";
 
 const { width } = Dimensions.get("window");
@@ -62,36 +63,22 @@ export default function DashboardScreen({ navigation }) {
   const streak = getCurrentStreak(log);
   const badges = getAchievedBadges(streak);
 
-  // All tasks sorted by startDate, cap at 8 rows on the board
-  const now = Date.now();
+  // Recurring tasks all run today — show TODAY's status & departure time only.
+  // Sort by today's departure time, cap at 8 rows on the board.
+  const BOARD_STATUS = {
+    scheduled: "ON TIME",
+    delayed: "DELAYED",
+    inflight: "ACTIVE",
+    landed: "LANDED",
+  };
   const taskBoard = tasks
-    .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
-    .slice(0, 8)
-    .map((t) => {
-      let boardStatus;
-      // Use explicit status field when present (new tasks)
-      switch (t.status) {
-        case "scheduled":
-          boardStatus = "ON TIME";
-          break;
-        case "delayed":
-          boardStatus = "DELAYED";
-          break;
-        case "inflight":
-          boardStatus = "ACTIVE";
-          break;
-        case "landed":
-          boardStatus = "LANDED";
-          break;
-        default:
-          // Legacy tasks without status field
-          if (!t.active) boardStatus = "LANDED";
-          else if (new Date(t.startDate).getTime() <= now)
-            boardStatus = "ACTIVE";
-          else boardStatus = "ON TIME";
-      }
-      return { ...t, boardStatus };
-    });
+    .map((t) => ({
+      ...t,
+      depToday: departureDateTime(t, time),
+      boardStatus: BOARD_STATUS[getTaskStatus(t, time)] || "ON TIME",
+    }))
+    .sort((a, b) => a.depToday - b.depToday)
+    .slice(0, 8);
 
   const timeStr = format(time, "HH:mm");
   const dateStr = format(time, "EEE dd MMM yyyy").toUpperCase();
@@ -114,6 +101,7 @@ export default function DashboardScreen({ navigation }) {
         {/* Header */}
         <View style={styles.header}>
           <View>
+            <Text style={styles.tagline}>WHERE DECIPLINE BEGINS</Text>
             <Text style={styles.headerTag}>ZERO-HOUR</Text>
             <View
               style={{
@@ -138,21 +126,16 @@ export default function DashboardScreen({ navigation }) {
           />
           <View style={styles.terminalRow}>
             <TerminalCard
-              iconName="pulse"
-              title="TRACK"
-              sub="FASTING"
-              color={COLORS.neonBlue}
-              active={fasting?.active}
-              activeLabel={fasting?.active ? "IN FLIGHT" : null}
-              onPress={() => navigation.navigate("Track")}
-            />
-            <TerminalCard
               iconName="list"
               title="PLAN"
               sub="TO-DO LIST"
               color={COLORS.neonGreen}
-              active={tasks.some((t) => t.active)}
-              activeLabel={tasks.some((t) => t.active) ? "ACTIVE" : null}
+              active={tasks.some((t) => getTaskStatus(t, time) === "inflight")}
+              activeLabel={
+                tasks.some((t) => getTaskStatus(t, time) === "inflight")
+                  ? "ACTIVE"
+                  : null
+              }
               onPress={() => navigation.navigate("Plan")}
             />
             <TerminalCard
@@ -161,6 +144,15 @@ export default function DashboardScreen({ navigation }) {
               sub="FOCUS TIMER"
               color={COLORS.neonPurple}
               onPress={() => navigation.navigate("Act")}
+            />
+            <TerminalCard
+              iconName="pulse"
+              title="TRACK"
+              sub="FASTING"
+              color={COLORS.neonBlue}
+              active={fasting?.active}
+              activeLabel={fasting?.active ? "IN FLIGHT" : null}
+              onPress={() => navigation.navigate("Track")}
             />
           </View>
         </View>
@@ -236,7 +228,7 @@ export default function DashboardScreen({ navigation }) {
                 key={t.id}
                 gate={`M${i + 1}`}
                 destination={t.name}
-                time={format(new Date(t.startDate), "HH:mm")}
+                time={format(t.depToday, "HH:mm")}
                 status={t.boardStatus}
                 index={fasting?.active ? i + 1 : i}
               />
@@ -270,7 +262,12 @@ function TerminalCard({
       {active && (
         <View style={[styles.activeDot, { backgroundColor: color }]} />
       )}
-      <Ionicons name={iconName} size={28} color={color} style={styles.termIcon} />
+      <Ionicons
+        name={iconName}
+        size={28}
+        color={color}
+        style={styles.termIcon}
+      />
       <Text style={[styles.termTitle, { color }]}>{title}</Text>
       <Text style={styles.termSub}>{sub}</Text>
       {activeLabel && (
@@ -303,7 +300,7 @@ const styles = StyleSheet.create({
   },
   headerTag: {
     color: COLORS.neonAmber,
-    fontSize: 28,
+    fontSize: 32,
     letterSpacing: 4,
     fontWeight: "700",
   },

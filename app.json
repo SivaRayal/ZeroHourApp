@@ -31,16 +31,9 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-sharing",
       "expo-font",
       "expo-splash-screen",
-      "expo-local-authentication",
-      [
-        "expo-av",
-        {
-          "microphonePermission": false
-        }
-      ]
+      "expo-local-authentication"
     ],
     "extra": {
       "eas": {

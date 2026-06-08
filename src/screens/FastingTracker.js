@@ -46,7 +46,7 @@ const FAST_IMAGES = [
   require("../../assets/fast-screen-6.png"),
 ];
 
-export default function BodyScreen() {
+export default function FastingTracker({ onBack }) {
   const [fasting, setFasting] = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
@@ -238,6 +238,15 @@ export default function BodyScreen() {
       <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
         {/* Header */}
         <View style={styles.header}>
+          {onBack && (
+            <TouchableOpacity
+              onPress={onBack}
+              style={styles.backBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.backBtnText}>‹ TRACK HUB</Text>
+            </TouchableOpacity>
+          )}
           <Text style={styles.screenTag}>TERMINAL T · TRACK</Text>
           <Text style={styles.screenTitle}>FASTING TRACKER</Text>
         </View>
@@ -499,6 +508,22 @@ function IdleState({ onStart }) {
 const styles = StyleSheet.create({
   bg: { flex: 1, backgroundColor: "#05070D" },
   header: { padding: SPACING.lg, paddingTop: 72 },
+  backBtn: {
+    alignSelf: "flex-start",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: "#1A2035",
+    backgroundColor: COLORS.bgCard,
+    marginBottom: SPACING.md,
+  },
+  backBtnText: {
+    color: COLORS.neonGreen,
+    fontSize: 11,
+    letterSpacing: 2,
+    fontWeight: "700",
+  },
   screenTag: {
     color: COLORS.neonGreen,
     fontSize: 9,

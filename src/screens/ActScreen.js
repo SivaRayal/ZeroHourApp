@@ -17,15 +17,16 @@ import FlipClock from "../components/FlipClock";
 import NeonRing from "../components/NeonRing";
 import SectionHeader from "../components/SectionHeader";
 import ConfirmModal from "../components/ConfirmModal";
+import { setTaskStatus } from "../utils/taskStatus";
 import { format } from "date-fns";
 
 const { width } = Dimensions.get("window");
 
-export default function SoulScreen() {
+export default function ActScreen() {
   // ─── Shared timer state ───────────────────────────────────────────────────
   const [running, setRunning] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [elapsed, setElapsed] = useState(0);       // seconds since last start/resume
+  const [elapsed, setElapsed] = useState(0); // seconds since last start/resume
   const [laps, setLaps] = useState([]);
   const [sessions, setSessions] = useState([]);
 
@@ -34,21 +35,27 @@ export default function SoulScreen() {
   const [showLandConfirm, setShowLandConfirm] = useState(false);
 
   // ─── Refs ─────────────────────────────────────────────────────────────────
-  const startRef    = useRef(null);
+  const startRef = useRef(null);
   const lapStartRef = useRef(0);
   const intervalRef = useRef(null);
-  const pulseAnim   = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowOpacity = useRef(new Animated.Value(0.3)).current;
 
   // Mirror state into refs so useFocusEffect cleanup can read latest values
   // without stale closure.
   const taskSessionRef = useRef(null);
-  const elapsedRef     = useRef(0);
-  const runningRef     = useRef(false);
+  const elapsedRef = useRef(0);
+  const runningRef = useRef(false);
 
-  useEffect(() => { taskSessionRef.current = taskSession; }, [taskSession]);
-  useEffect(() => { elapsedRef.current = elapsed; },       [elapsed]);
-  useEffect(() => { runningRef.current = running; },       [running]);
+  useEffect(() => {
+    taskSessionRef.current = taskSession;
+  }, [taskSession]);
+  useEffect(() => {
+    elapsedRef.current = elapsed;
+  }, [elapsed]);
+  useEffect(() => {
+    runningRef.current = running;
+  }, [running]);
 
   // ─── Pulse animation ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -60,12 +67,28 @@ export default function SoulScreen() {
     Animated.loop(
       Animated.parallel([
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.08, duration: 600, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1,    duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, {
+            toValue: 1.08,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
         ]),
         Animated.sequence([
-          Animated.timing(glowOpacity, { toValue: 0.8, duration: 600, useNativeDriver: true }),
-          Animated.timing(glowOpacity, { toValue: 0.3, duration: 600, useNativeDriver: true }),
+          Animated.timing(glowOpacity, {
+            toValue: 0.8,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowOpacity, {
+            toValue: 0.3,
+            duration: 600,
+            useNativeDriver: true,
+          }),
         ]),
       ]),
     ).start();
@@ -74,8 +97,16 @@ export default function SoulScreen() {
   const stopPulse = () => {
     pulseAnim.stopAnimation();
     glowOpacity.stopAnimation();
-    Animated.timing(pulseAnim,   { toValue: 1,   duration: 200, useNativeDriver: true }).start();
-    Animated.timing(glowOpacity, { toValue: 0.3, duration: 200, useNativeDriver: true }).start();
+    Animated.timing(pulseAnim, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+    Animated.timing(glowOpacity, {
+      toValue: 0.3,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
   };
 
   // ─── Focus effect: load session, auto-start if needed ────────────────────
@@ -121,8 +152,8 @@ export default function SoulScreen() {
       // Cleanup: when screen loses focus, save remaining time if running task
       return () => {
         clearInterval(intervalRef.current);
-        const ts  = taskSessionRef.current;
-        const el  = elapsedRef.current;
+        const ts = taskSessionRef.current;
+        const el = elapsedRef.current;
         const run = runningRef.current;
 
         if (ts && run) {
@@ -132,14 +163,12 @@ export default function SoulScreen() {
             : ts.progressSeconds + el;
           Storage.saveTaskSession({ ...ts, progressSeconds, status: "paused" });
 
-          // Revert task status to scheduled or delayed based on departure time
-          const dep = ts.taskStartDate
-            ? new Date(ts.taskStartDate.replace(" ", "T")).getTime()
-            : 0;
-          const newStatus = dep > Date.now() ? "scheduled" : "delayed";
+          // Revert today's status to automatic (scheduled/delayed)
           Storage.getTasks().then((allTasks) => {
             const updated = allTasks.map((t) =>
-              t.id === ts.taskId ? { ...t, status: newStatus, active: true } : t,
+              t.id === ts.taskId
+                ? { ...setTaskStatus(t, "delayed"), active: true }
+                : t,
             );
             Storage.saveTasks(updated);
           });
@@ -173,9 +202,16 @@ export default function SoulScreen() {
     : elapsed;
 
   // ─── Progress ratio for task countdown bar ────────────────────────────────
-  const progressRatio = (taskSession && taskSession.countdown && taskSession.totalSeconds > 0)
-    ? Math.max(0, Math.min(1, (taskSession.progressSeconds - elapsed) / taskSession.totalSeconds))
-    : null;
+  const progressRatio =
+    taskSession && taskSession.countdown && taskSession.totalSeconds > 0
+      ? Math.max(
+          0,
+          Math.min(
+            1,
+            (taskSession.progressSeconds - elapsed) / taskSession.totalSeconds,
+          ),
+        )
+      : null;
 
   // ─── Storage helpers ──────────────────────────────────────────────────────
   const loadSessions = async () => {
@@ -266,14 +302,10 @@ export default function SoulScreen() {
     setTaskSession(updated);
     setElapsed(0); // reset elapsed so resume starts fresh from saved progress
 
-    // Revert task status to scheduled/delayed
-    const dep = ts.taskStartDate
-      ? new Date(ts.taskStartDate.replace(" ", "T")).getTime()
-      : 0;
-    const newStatus = dep > Date.now() ? "scheduled" : "delayed";
+    // Revert today's status to automatic (scheduled/delayed)
     const allTasks = await Storage.getTasks();
     const updatedTasks = allTasks.map((t) =>
-      t.id === ts.taskId ? { ...t, status: newStatus, active: true } : t,
+      t.id === ts.taskId ? { ...setTaskStatus(t, "delayed"), active: true } : t,
     );
     await Storage.saveTasks(updatedTasks);
   };
@@ -298,10 +330,10 @@ export default function SoulScreen() {
       setElapsed(el);
     }, 500);
 
-    // Mark task as inflight again
+    // Mark task as inflight again for today
     const allTasks = await Storage.getTasks();
     const updatedTasks = allTasks.map((t) =>
-      t.id === ts.taskId ? { ...t, status: "inflight", active: true } : t,
+      t.id === ts.taskId ? { ...setTaskStatus(t, "inflight"), active: true } : t,
     );
     await Storage.saveTasks(updatedTasks);
   };
@@ -327,12 +359,10 @@ export default function SoulScreen() {
     await Storage.clearTaskSession();
     setTaskSession(null);
 
-    // Mark task as landed
+    // Mark task as landed for today
     const allTasks = await Storage.getTasks();
     const updatedTasks = allTasks.map((t) =>
-      t.id === ts.taskId
-        ? { ...t, status: "landed", active: false }
-        : t,
+      t.id === ts.taskId ? { ...setTaskStatus(t, "landed"), active: false } : t,
     );
     await Storage.saveTasks(updatedTasks);
 
@@ -373,33 +403,34 @@ export default function SoulScreen() {
     await Storage.clearTaskSession();
     setTaskSession(null);
 
-    // Revert task to scheduled/delayed
-    const dep = ts.taskStartDate
-      ? new Date(ts.taskStartDate.replace(" ", "T")).getTime()
-      : 0;
-    const newStatus = dep > Date.now() ? "scheduled" : "delayed";
+    // Revert today's status to automatic (scheduled/delayed)
     const allTasks = await Storage.getTasks();
     const updatedTasks = allTasks.map((t) =>
-      t.id === ts.taskId ? { ...t, status: newStatus, active: true } : t,
+      t.id === ts.taskId ? { ...setTaskStatus(t, "delayed"), active: true } : t,
     );
     await Storage.saveTasks(updatedTasks);
   };
 
   // ─── Derived ──────────────────────────────────────────────────────────────
-  const lapElapsed    = elapsed - lapStartRef.current;
-  const isTaskMode    = !!taskSession;
-  const ringColor     = isTaskMode ? COLORS.neonBlue : COLORS.neonPurple;
-  const clockColor    = running
-    ? (isTaskMode ? COLORS.neonBlue : COLORS.neonPurple)
+  const lapElapsed = elapsed - lapStartRef.current;
+  const isTaskMode = !!taskSession;
+  const ringColor = isTaskMode ? COLORS.neonBlue : COLORS.neonPurple;
+  const clockColor = running
+    ? isTaskMode
+      ? COLORS.neonBlue
+      : COLORS.neonPurple
     : COLORS.textSecondary;
 
   return (
-    <LinearGradient colors={["#05070D", "#0A0C10", "#050A14"]} style={styles.bg}>
+    <LinearGradient
+      colors={["#05070D", "#0A0C10", "#050A14"]}
+      style={styles.bg}
+    >
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.screenTitle}>FOCUS TIMER</Text>
           <Text style={styles.screenTag}>TERMINAL A · ACT</Text>
+          <Text style={styles.screenTitle}>FOCUS TIMER</Text>
         </View>
 
         {/* Session label */}
@@ -407,7 +438,11 @@ export default function SoulScreen() {
           {isTaskMode ? (
             <SectionHeader
               title={taskSession.taskName}
-              sub={taskSession.countdown ? "COUNTDOWN · MISSION IN PROGRESS" : "ELAPSED · MISSION IN PROGRESS"}
+              sub={
+                taskSession.countdown
+                  ? "COUNTDOWN · MISSION IN PROGRESS"
+                  : "ELAPSED · MISSION IN PROGRESS"
+              }
               color={COLORS.neonBlue}
             />
           ) : (
@@ -420,58 +455,72 @@ export default function SoulScreen() {
         </View>
 
         {/* Task progress bar (countdown mode only) */}
-        {isTaskMode && taskSession.countdown && taskSession.totalSeconds > 0 && (
-          <View style={styles.progressBarWrap}>
-            <View style={styles.progressBarBg}>
-              <LinearGradient
-                colors={[COLORS.neonBlue, COLORS.neonCyan]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.progressBarFill, { width: `${(progressRatio * 100).toFixed(1)}%` }]}
-              />
+        {isTaskMode &&
+          taskSession.countdown &&
+          taskSession.totalSeconds > 0 && (
+            <View style={styles.progressBarWrap}>
+              <View style={styles.progressBarBg}>
+                <LinearGradient
+                  colors={[COLORS.neonBlue, COLORS.neonCyan]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[
+                    styles.progressBarFill,
+                    { width: `${(progressRatio * 100).toFixed(1)}%` },
+                  ]}
+                />
+              </View>
+              <View style={styles.progressLabels}>
+                <Text style={styles.progressLabelLeft}>
+                  {formatTime(
+                    Math.max(0, taskSession.progressSeconds - elapsed),
+                  )}{" "}
+                  LEFT
+                </Text>
+                <Text style={styles.progressLabelRight}>
+                  {formatTime(taskSession.totalSeconds)} TOTAL
+                </Text>
+              </View>
             </View>
-            <View style={styles.progressLabels}>
-              <Text style={styles.progressLabelLeft}>
-                {formatTime(Math.max(0, taskSession.progressSeconds - elapsed))} LEFT
-              </Text>
-              <Text style={styles.progressLabelRight}>
-                {formatTime(taskSession.totalSeconds)} TOTAL
-              </Text>
-            </View>
-          </View>
-        )}
+          )}
 
         {/* Main clock area */}
         <View style={styles.clockArea}>
           {(running || paused) && (
             <>
-              <NeonRing color={ringColor}         size={300} delay={0}    />
-              <NeonRing color={COLORS.neonBlue}   size={240} delay={600}  />
-              <NeonRing color={COLORS.neonCyan}   size={180} delay={1200} />
+              <NeonRing color={ringColor} size={300} delay={0} />
+              <NeonRing color={COLORS.neonBlue} size={240} delay={600} />
+              <NeonRing color={COLORS.neonCyan} size={180} delay={1200} />
             </>
           )}
 
           <Animated.View
             style={[styles.clockCenter, { transform: [{ scale: pulseAnim }] }]}
           />
-          <FlipClock
-            seconds={displaySeconds}
-            size={66}
-            color={clockColor}
-          />
+          <FlipClock seconds={displaySeconds} size={66} color={clockColor} />
 
           {/* Lap time row — only in free-form mode */}
           {!isTaskMode && (running || paused) && (
             <View style={styles.lapTimeRow}>
-              <Text style={styles.lapTimeLabel}>LAP {laps.length + 1}  </Text>
+              <Text style={styles.lapTimeLabel}>LAP {laps.length + 1} </Text>
               <Text style={styles.lapTimeVal}>{formatTime(lapElapsed)}</Text>
             </View>
           )}
 
           {/* Task mode status badge */}
           {isTaskMode && (running || paused) && (
-            <View style={[styles.missionBadge, { borderColor: running ? COLORS.neonBlue : COLORS.neonAmber }]}>
-              <Text style={[styles.missionBadgeText, { color: running ? COLORS.neonBlue : COLORS.neonAmber }]}>
+            <View
+              style={[
+                styles.missionBadge,
+                { borderColor: running ? COLORS.neonBlue : COLORS.neonAmber },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.missionBadgeText,
+                  { color: running ? COLORS.neonBlue : COLORS.neonAmber },
+                ]}
+              >
                 {running ? "✈ IN FLIGHT" : "⏸ HOLDING"}
               </Text>
             </View>
@@ -480,15 +529,19 @@ export default function SoulScreen() {
 
         {/* ── Controls ── */}
         <View style={styles.controls}>
-
           {/* ─── FREE-FORM mode ─── */}
           {!isTaskMode && (
             <>
               {!running && !paused && (
-                <TouchableOpacity style={styles.mainBtn} onPress={handleStart} activeOpacity={0.8}>
+                <TouchableOpacity
+                  style={styles.mainBtn}
+                  onPress={handleStart}
+                  activeOpacity={0.8}
+                >
                   <LinearGradient
                     colors={["#9B5DE5", "#00CFFF"]}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
                     style={styles.mainBtnGrad}
                   >
                     <Text style={styles.mainBtnText}>▶ DEPARTURE</Text>
@@ -498,13 +551,25 @@ export default function SoulScreen() {
 
               {running && (
                 <View style={styles.runControls}>
-                  <TouchableOpacity style={styles.secBtn} onPress={handleLap} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={styles.secBtn}
+                    onPress={handleLap}
+                    activeOpacity={0.8}
+                  >
                     <Text style={styles.secBtnText}>LAP</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.pauseBtn} onPress={handlePause} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={styles.pauseBtn}
+                    onPress={handlePause}
+                    activeOpacity={0.8}
+                  >
                     <Text style={styles.pauseBtnText}>⏸ HOLD</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.stopBtn} onPress={handleStop} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={styles.stopBtn}
+                    onPress={handleStop}
+                    activeOpacity={0.8}
+                  >
                     <Text style={styles.stopBtnText}>■ LAND</Text>
                   </TouchableOpacity>
                 </View>
@@ -512,13 +577,26 @@ export default function SoulScreen() {
 
               {paused && (
                 <View style={styles.runControls}>
-                  <TouchableOpacity style={styles.secBtn} onPress={handleStop} activeOpacity={0.8}>
-                    <Text style={[styles.secBtnText, { color: COLORS.neonRed }]}>■ DISCARD</Text>
+                  <TouchableOpacity
+                    style={styles.secBtn}
+                    onPress={handleStop}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[styles.secBtnText, { color: COLORS.neonRed }]}
+                    >
+                      ■ DISCARD
+                    </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.mainBtn} onPress={handleResume} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={styles.mainBtn}
+                    onPress={handleResume}
+                    activeOpacity={0.8}
+                  >
                     <LinearGradient
                       colors={["#9B5DE5", "#00CFFF"]}
-                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
                       style={styles.mainBtnGrad}
                     >
                       <Text style={styles.mainBtnText}>▶ RESUME</Text>
@@ -534,10 +612,15 @@ export default function SoulScreen() {
             <>
               {/* Task mode: not yet started (session paused, first focus) */}
               {!running && !paused && (
-                <TouchableOpacity style={styles.mainBtn} onPress={handleTaskResume} activeOpacity={0.8}>
+                <TouchableOpacity
+                  style={styles.mainBtn}
+                  onPress={handleTaskResume}
+                  activeOpacity={0.8}
+                >
                   <LinearGradient
                     colors={[COLORS.neonBlue, COLORS.neonCyan]}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
                     style={styles.mainBtnGrad}
                   >
                     <Text style={styles.mainBtnText}>▶ BEGIN MISSION</Text>
@@ -547,24 +630,49 @@ export default function SoulScreen() {
 
               {running && (
                 <View style={styles.runControls}>
-                  <TouchableOpacity style={styles.pauseBtn} onPress={handleTaskHold} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={styles.pauseBtn}
+                    onPress={handleTaskHold}
+                    activeOpacity={0.8}
+                  >
                     <Text style={styles.pauseBtnText}>⏸ HOLD</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.stopBtn} onPress={handleTaskLandRequest} activeOpacity={0.8}>
-                    <Text style={[styles.stopBtnText, { color: COLORS.neonGreen }]}>✓ LAND</Text>
+                  <TouchableOpacity
+                    style={styles.stopBtn}
+                    onPress={handleTaskLandRequest}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[styles.stopBtnText, { color: COLORS.neonGreen }]}
+                    >
+                      ✓ LAND
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
 
               {paused && (
                 <View style={styles.runControls}>
-                  <TouchableOpacity style={styles.secBtn} onPress={handleTaskDiscard} activeOpacity={0.8}>
-                    <Text style={[styles.secBtnText, { color: COLORS.neonRed }]}>✕ ABORT</Text>
+                  <TouchableOpacity
+                    style={styles.secBtn}
+                    onPress={handleTaskDiscard}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[styles.secBtnText, { color: COLORS.neonRed }]}
+                    >
+                      ✕ ABORT
+                    </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.mainBtn} onPress={handleTaskResume} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={styles.mainBtn}
+                    onPress={handleTaskResume}
+                    activeOpacity={0.8}
+                  >
                     <LinearGradient
                       colors={[COLORS.neonBlue, COLORS.neonCyan]}
-                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
                       style={styles.mainBtnGrad}
                     >
                       <Text style={styles.mainBtnText}>▶ RESUME</Text>
@@ -618,9 +726,13 @@ export default function SoulScreen() {
                     <Text style={styles.sessionTask}>{s.taskName}</Text>
                   )}
                   <Text style={styles.sessionDate}>{s.date}</Text>
-                  <Text style={styles.sessionDur}>{formatTime(s.duration)}</Text>
+                  <Text style={styles.sessionDur}>
+                    {formatTime(s.duration)}
+                  </Text>
                 </View>
-                <Text style={styles.sessionLaps}>{s.laps?.length || 0} LAPS</Text>
+                <Text style={styles.sessionLaps}>
+                  {s.laps?.length || 0} LAPS
+                </Text>
               </View>
             ))}
           </View>

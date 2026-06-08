@@ -15,16 +15,27 @@ import { format } from "date-fns";
 import { COLORS, SPACING, FONTS, RADIUS } from "../theme";
 import { Storage } from "../store/storage";
 import { scheduleReminder, cancelNotification } from "../utils/notifications";
+import {
+  getTaskStatus,
+  setTaskStatus,
+  migrateTask,
+  departureDateTime,
+  arrivalDateTime,
+  timeOfDay,
+} from "../utils/taskStatus";
 import SectionHeader from "../components/SectionHeader";
 import ConfirmModal from "../components/ConfirmModal";
 
 const FREQ_OPTIONS = [1, 2, 3, 4, 5, 6];
 
 // ─── Status definitions ───────────────────────────────────────────────────────
-// 'scheduled' – created, departure time in the future
+// Every task repeats daily. Each day it cycles through:
+// 'scheduled' – before today's departure time
 // 'delayed'   – departure time has passed, not yet TAKEOFF'd
-// 'inflight'  – user tapped TAKEOFF
-// 'landed'    – user tapped LAND
+// 'inflight'  – user tapped TAKEOFF (per-day)
+// 'landed'    – user tapped LAND     (per-day)
+// SCHEDULED/DELAYED are computed live; INFLIGHT/LANDED are stored per-day.
+// See ../utils/taskStatus.js
 
 const FILTERS = [
   { key: "scheduled", label: "SCHEDULED", color: COLORS.neonGreen },
@@ -32,13 +43,6 @@ const FILTERS = [
   { key: "inflight",  label: "IN FLIGHT", color: COLORS.neonBlue  },
   { key: "landed",    label: "LANDED",    color: COLORS.textSecondary },
 ];
-
-/** Derive status for tasks that pre-date the status field. */
-function deriveStatus(task, now) {
-  if (task.status) return task.status;
-  if (!task.active) return "landed";
-  return new Date(task.startDate).getTime() > now ? "scheduled" : "delayed";
-}
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -417,7 +421,7 @@ const pk = StyleSheet.create({
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-export default function MindScreen() {
+export default function PlanScreen() {
   const navigation = useNavigation();
   const [tasks, setTasks] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -432,8 +436,11 @@ export default function MindScreen() {
     freq: 1,
     slots: ["09:00"],
     hasEndDate: false,
+    recurring: false, // false = single flight, true = repeats daily over window
   });
   const [filter, setFilter] = useState("scheduled");
+  // Live clock — recompute scheduled→delayed transitions as time passes.
+  const [now, setNow] = useState(new Date());
   // Pending modal confirmations: { id, name } or null
   const [pendingLand, setPendingLand] = useState(null);
   const [pendingDel, setPendingDel]   = useState(null);
@@ -441,52 +448,24 @@ export default function MindScreen() {
   useFocusEffect(
     useCallback(() => {
       loadTasks();
-      // Re-check for newly-delayed tasks every 60 s while screen is open
-      const interval = setInterval(advanceDelayed, 60000);
+      setNow(new Date());
+      // Tick every 30 s so the live SCHEDULED→DELAYED transition shows up
+      const interval = setInterval(() => setNow(new Date()), 30000);
       return () => clearInterval(interval);
     }, []),
   );
 
-  /** Load tasks, migrate legacy status, and advance scheduled→delayed. */
+  /** Load tasks and migrate any legacy (non-recurring) tasks. */
   const loadTasks = async () => {
     const raw = await Storage.getTasks();
-    const now = Date.now();
     let dirty = false;
     const migrated = raw.map((t) => {
-      const status = deriveStatus(t, now);
-      // Auto-advance: scheduled → delayed when departure time has passed
-      if (status === "scheduled" && new Date(t.startDate).getTime() <= now) {
-        dirty = true;
-        return { ...t, status: "delayed" };
-      }
-      if (status !== t.status) {
-        dirty = true;
-        return { ...t, status };
-      }
-      return t;
+      const { task, changed } = migrateTask(t);
+      if (changed) dirty = true;
+      return task;
     });
     if (dirty) await Storage.saveTasks(migrated);
     setTasks(migrated);
-  };
-
-  /** Lightweight check (runs every 60 s): advance any newly-delayed tasks. */
-  const advanceDelayed = async () => {
-    const now = Date.now();
-    setTasks((prev) => {
-      let dirty = false;
-      const next = prev.map((t) => {
-        if (
-          t.status === "scheduled" &&
-          new Date(t.startDate).getTime() <= now
-        ) {
-          dirty = true;
-          return { ...t, status: "delayed" };
-        }
-        return t;
-      });
-      if (dirty) Storage.saveTasks(next);
-      return dirty ? next : prev;
-    });
   };
 
   const openForm = () => {
@@ -508,9 +487,16 @@ export default function MindScreen() {
       Alert.alert("BOARDING DENIED", "Task name is required");
       return;
     }
-    const depMs = new Date(form.startDate).getTime();
-    const initialStatus = depMs > Date.now() ? "scheduled" : "delayed";
-    const task = {
+    // A recurring flight needs an arrival date to bound its daily window.
+    if (form.recurring && !form.hasEndDate) {
+      Alert.alert(
+        "ARRIVAL REQUIRED",
+        "A recurring flight repeats from its departure date to its arrival date — set an arrival time to define the window.",
+      );
+      return;
+    }
+    const recurring = form.recurring;
+    const base = {
       id: genId(),
       name: form.name.trim(),
       desc: form.desc.trim(),
@@ -518,17 +504,27 @@ export default function MindScreen() {
       endDate: form.hasEndDate ? form.endDate : "",
       freq: form.freq,
       slots: form.slots.filter(Boolean),
+      recurring,
       active: true,
-      status: initialStatus,
       createdAt: Date.now(),
       type: "task",
     };
+    const task = recurring
+      ? { ...base, dayStatus: {} } // per-day inflight/landed overrides
+      : {
+          ...base,
+          // single instance: initial one-time status
+          status:
+            new Date(form.startDate).getTime() > Date.now()
+              ? "scheduled"
+              : "delayed",
+        };
     const updated = [task, ...tasks];
     await Storage.saveTasks(updated);
     await scheduleReminder(task);
     setTasks(updated);
     setShowForm(false);
-    setFilter(initialStatus); // jump to the tab where the new task landed
+    setFilter(getTaskStatus(task)); // jump to the tab where the new task landed
   };
 
   /** TAKEOFF: scheduled / delayed → inflight; save session, navigate to Soul. */
@@ -536,15 +532,15 @@ export default function MindScreen() {
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
 
-    // Calculate countdown duration when both departure and arrival are set
+    // Calculate today's countdown duration when an arrival time is set
     let countdown = false;
     let totalSeconds = 0;
     let progressSeconds = 0;
 
-    if (task.startDate && task.endDate) {
-      const dep = new Date(task.startDate.replace(" ", "T")).getTime();
-      const arr = new Date(task.endDate.replace(" ", "T")).getTime();
-      const dur = Math.floor((arr - dep) / 1000);
+    const depTime = departureDateTime(task);
+    const arrTime = arrivalDateTime(task);
+    if (arrTime) {
+      const dur = Math.floor((arrTime.getTime() - depTime.getTime()) / 1000);
       if (dur > 0) {
         countdown = true;
         totalSeconds = dur;
@@ -560,20 +556,21 @@ export default function MindScreen() {
       progressSeconds = existingSession.progressSeconds;
     }
 
-    // Persist session — status:'running' tells SoulScreen to auto-start
+    // Persist session — status:'running' tells ActScreen to auto-start.
+    // taskStartDate is today's departure so ActScreen can revert correctly.
     await Storage.saveTaskSession({
       taskId: id,
       taskName: task.name,
-      taskStartDate: task.startDate || "",
+      taskStartDate: format(depTime, "yyyy-MM-dd HH:mm"),
       countdown,
       totalSeconds,
       progressSeconds,
       status: "running",
     });
 
-    // Mark task as in-flight
+    // Mark task as in-flight (per-day for recurring, one-time for single)
     const updated = tasks.map((t) =>
-      t.id === id ? { ...t, status: "inflight", active: true } : t,
+      t.id === id ? { ...setTaskStatus(t, "inflight"), active: true } : t,
     );
     await Storage.saveTasks(updated);
     setTasks(updated);
@@ -591,7 +588,7 @@ export default function MindScreen() {
     const { id } = pendingLand;
     setPendingLand(null);
     const updated = tasks.map((t) =>
-      t.id === id ? { ...t, status: "landed", active: false } : t,
+      t.id === id ? { ...setTaskStatus(t, "landed"), active: false } : t,
     );
     await Storage.saveTasks(updated);
     await Storage.markDayComplete(format(new Date(), "yyyy-MM-dd"));
@@ -614,11 +611,13 @@ export default function MindScreen() {
     setTasks(updated);
   };
 
-  const filtered = tasks.filter((t) => t.status === filter);
+  // Compute today's live status for every task, then filter / count.
+  const withStatus = tasks.map((t) => ({ task: t, st: getTaskStatus(t, now) }));
+  const filtered = withStatus.filter((x) => x.st === filter).map((x) => x.task);
 
   // Live counts for tab badges
   const counts = FILTERS.reduce((acc, f) => {
-    acc[f.key] = tasks.filter((t) => t.status === f.key).length;
+    acc[f.key] = withStatus.filter((x) => x.st === f.key).length;
     return acc;
   }, {});
 
@@ -729,6 +728,7 @@ export default function MindScreen() {
           <TaskCard
             key={task.id}
             task={task}
+            status={getTaskStatus(task, now)}
             onTakeoff={takeoffTask}
             onLandRequest={requestLand}
             onDeleteRequest={requestDelete}
@@ -770,8 +770,62 @@ export default function MindScreen() {
                 />
               </Field>
 
-              {/* DEPARTURE TIME — drum picker */}
-              <Field label="DEPARTURE TIME" required>
+              {/* FLIGHT TYPE — single vs recurring */}
+              <Field label="FLIGHT TYPE">
+                <View style={styles.typeRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeBtn,
+                      !form.recurring && styles.typeBtnActive,
+                    ]}
+                    onPress={() => setForm({ ...form, recurring: false })}
+                  >
+                    <Text
+                      style={[
+                        styles.typeText,
+                        !form.recurring && styles.typeTextActive,
+                      ]}
+                    >
+                      🎫 SINGLE FLIGHT
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeBtn,
+                      form.recurring && styles.typeBtnActive,
+                    ]}
+                    onPress={() =>
+                      setForm({
+                        ...form,
+                        recurring: true,
+                        // recurring needs an arrival date to bound the window
+                        hasEndDate: true,
+                        endDate: form.endDate || form.startDate,
+                      })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.typeText,
+                        form.recurring && styles.typeTextActive,
+                      ]}
+                    >
+                      🔁 RECURRING DAILY
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.typeHint}>
+                  {form.recurring
+                    ? "Repeats every day from the Departure date to the Arrival date, at the times below."
+                    : "Happens once at the departure time."}
+                </Text>
+              </Field>
+
+              {/* DEPARTURE — drum picker */}
+              <Field
+                label={form.recurring ? "DEPARTURE (START DATE & TIME)" : "DEPARTURE TIME"}
+                required
+              >
                 <InlineDateTimePicker
                   key={`dep-${formKey}`}
                   value={form.startDate}
@@ -779,8 +833,15 @@ export default function MindScreen() {
                 />
               </Field>
 
-              {/* ARRIVAL TIME — optional */}
-              <Field label="ARRIVAL TIME">
+              {/* ARRIVAL — optional for single, required for recurring */}
+              <Field
+                label={
+                  form.recurring
+                    ? "ARRIVAL (END DATE & TIME)"
+                    : "ARRIVAL TIME"
+                }
+                required={form.recurring}
+              >
                 {form.hasEndDate ? (
                   <View>
                     <InlineDateTimePicker
@@ -788,16 +849,18 @@ export default function MindScreen() {
                       value={form.endDate || form.startDate}
                       onChange={(v) => setForm({ ...form, endDate: v })}
                     />
-                    <TouchableOpacity
-                      style={styles.clearArrivalBtn}
-                      onPress={() =>
-                        setForm({ ...form, hasEndDate: false, endDate: "" })
-                      }
-                    >
-                      <Text style={styles.clearArrivalText}>
-                        ✕ CLEAR ARRIVAL
-                      </Text>
-                    </TouchableOpacity>
+                    {!form.recurring && (
+                      <TouchableOpacity
+                        style={styles.clearArrivalBtn}
+                        onPress={() =>
+                          setForm({ ...form, hasEndDate: false, endDate: "" })
+                        }
+                      >
+                        <Text style={styles.clearArrivalText}>
+                          ✕ CLEAR ARRIVAL
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ) : (
                   <TouchableOpacity
@@ -961,28 +1024,21 @@ const STATUS_META = {
   landed:    { color: COLORS.textSecondary, label: "LANDED"    },
 };
 
-/**
- * LANDED tasks: DEL is hidden if the task's arrival time (endDate) exists
- * and falls outside the current calendar month + year.
- * If there is no endDate the rule does not apply, so DEL is shown.
- */
-function canDeleteLanded(task) {
-  if (!task.endDate) return true; // no arrival time → always show DEL
-  const now = new Date();
-  const arrival = new Date(task.endDate.replace(" ", "T"));
-  return (
-    arrival.getMonth()    === now.getMonth() &&
-    arrival.getFullYear() === now.getFullYear()
-  );
+/** "10 Jun – 20 Jun" window label for a recurring task (open-ended → "+"). */
+function recurringWindowLabel(task) {
+  const start = format(new Date(task.startDate.replace(" ", "T")), "dd MMM");
+  if (!task.endDate) return `${start}+`;
+  const end = format(new Date(task.endDate.replace(" ", "T")), "dd MMM");
+  return `${start} – ${end}`;
 }
 
 // ─── Task Card ────────────────────────────────────────────────────────────────
-function TaskCard({ task, onTakeoff, onLandRequest, onDeleteRequest }) {
-  const s    = task.status || (task.active ? "inflight" : "landed");
+function TaskCard({ task, status, onTakeoff, onLandRequest, onDeleteRequest }) {
+  const s    = status || "scheduled";
   const meta = STATUS_META[s] || STATUS_META.scheduled;
 
-  // For LANDED: DEL shown only when endDate is within current month/year
-  const showDel = s === "landed" ? canDeleteLanded(task) : true;
+  // Recurring tasks can always be deleted (removes the whole daily flight).
+  const showDel = true;
 
   return (
     <View style={[tcs.card, { borderColor: meta.color + "44" }]}>
@@ -1041,9 +1097,23 @@ function TaskCard({ task, onTakeoff, onLandRequest, onDeleteRequest }) {
       {task.desc ? <Text style={tcs.desc}>{task.desc}</Text> : null}
 
       <View style={tcs.metaRow}>
-        <MetaTag icon="🛫" label={task.startDate} />
-        {task.endDate ? <MetaTag icon="🛬" label={task.endDate} /> : null}
-        <MetaTag icon="🔁" label={`${task.freq}x/day`} />
+        {task.recurring ? (
+          <>
+            <MetaTag icon="🛫" label={timeOfDay(task.startDate)} />
+            {task.endDate ? (
+              <MetaTag icon="🛬" label={timeOfDay(task.endDate)} />
+            ) : null}
+            <MetaTag icon="🔁" label="DAILY" />
+            <MetaTag icon="📅" label={recurringWindowLabel(task)} />
+          </>
+        ) : (
+          <>
+            <MetaTag icon="🛫" label={task.startDate} />
+            {task.endDate ? <MetaTag icon="🛬" label={task.endDate} /> : null}
+            <MetaTag icon="🎫" label="ONE-TIME" />
+          </>
+        )}
+        <MetaTag icon="🔢" label={`${task.freq}x/day`} />
       </View>
 
       {task.slots?.length > 0 && (
@@ -1276,6 +1346,34 @@ const styles = StyleSheet.create({
   },
   freqText: { color: COLORS.textDim, fontWeight: "700", fontSize: 14 },
   freqTextActive: { color: COLORS.neonBlue },
+  typeRow: { flexDirection: "row", gap: SPACING.sm },
+  typeBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.bgCard,
+    borderWidth: 1,
+    borderColor: "#1A2035",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  typeBtnActive: {
+    borderColor: COLORS.neonBlue,
+    backgroundColor: COLORS.neonBlue + "22",
+  },
+  typeText: {
+    color: COLORS.textDim,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  typeTextActive: { color: COLORS.neonBlue },
+  typeHint: {
+    color: COLORS.textDim,
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 6,
+  },
   sectionBlock: { paddingHorizontal: SPACING.md, marginBottom: 2 },
   modalBtns: { flexDirection: "row", marginTop: SPACING.md, gap: SPACING.sm },
   cancelBtn: {

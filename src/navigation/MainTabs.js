@@ -9,16 +9,16 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 
 import DashboardScreen from "../screens/DashboardScreen";
-import BodyScreen from "../screens/BodyScreen";
-import MindScreen from "../screens/MindScreen";
-import SoulScreen from "../screens/SoulScreen";
+import TrackScreen from "../screens/TrackScreen";
+import PlanScreen from "../screens/PlanScreen";
+import ActScreen from "../screens/ActScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import { COLORS } from "../theme";
 
 const Tab = createBottomTabNavigator();
 
 // Tab icon sizes
-const ICON_SIZE       = 22;
+const ICON_SIZE = 22;
 const ICON_SIZE_FOCUS = 24;
 
 function TabIcon({ label, iconName, focused }) {
@@ -67,17 +67,8 @@ function TabsNavigator({ onLogout }) {
         }}
       />
       <Tab.Screen
-        name="Track"
-        component={BodyScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="TRACK" iconName="pulse" focused={focused} />
-          ),
-        }}
-      />
-      <Tab.Screen
         name="Plan"
-        component={MindScreen}
+        component={PlanScreen}
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIcon label="PLAN" iconName="list" focused={focused} />
@@ -86,10 +77,19 @@ function TabsNavigator({ onLogout }) {
       />
       <Tab.Screen
         name="Act"
-        component={SoulScreen}
+        component={ActScreen}
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIcon label="ACT" iconName="timer" focused={focused} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Track"
+        component={TrackScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon label="TRACK" iconName="pulse" focused={focused} />
           ),
         }}
       />

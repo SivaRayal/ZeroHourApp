@@ -7,9 +7,9 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import RegisterScreen from '../screens/RegisterScreen';
 import AuthScreen from '../screens/AuthScreen';
 import DashboardScreen from '../screens/DashboardScreen';
-import BodyScreen from '../screens/BodyScreen';
-import MindScreen from '../screens/MindScreen';
-import SoulScreen from '../screens/SoulScreen';
+import TrackScreen from '../screens/TrackScreen';
+import PlanScreen from '../screens/PlanScreen';
+import ActScreen from '../screens/ActScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { COLORS } from '../theme';
 
@@ -42,19 +42,19 @@ function MainApp() {
         options={{ tabBarIcon: ({ focused }) => <TabIcon label="GATE" icon="🏠" focused={focused} /> }}
       />
       <Tab.Screen
-        name="Body"
-        component={BodyScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon label="BODY" icon="🧬" focused={focused} /> }}
+        name="Track"
+        component={TrackScreen}
+        options={{ tabBarIcon: ({ focused }) => <TabIcon label="TRACK" icon="🧬" focused={focused} /> }}
       />
       <Tab.Screen
-        name="Mind"
-        component={MindScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon label="MIND" icon="🧠" focused={focused} /> }}
+        name="Plan"
+        component={PlanScreen}
+        options={{ tabBarIcon: ({ focused }) => <TabIcon label="PLAN" icon="🧠" focused={focused} /> }}
       />
       <Tab.Screen
-        name="Soul"
-        component={SoulScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon label="SOUL" icon="✨" focused={focused} /> }}
+        name="Act"
+        component={ActScreen}
+        options={{ tabBarIcon: ({ focused }) => <TabIcon label="ACT" icon="✨" focused={focused} /> }}
       />
       <Tab.Screen
         name="Profile"
